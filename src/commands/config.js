@@ -11,7 +11,10 @@ const { parseChannelLink } = require('../lib/links');
 
 const TEXT_CHANNELS = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
 
-/** Channel settings that `/config link` can fill from a pasted link. */
+/**
+ * Every channel setting `/config set` can fill, either from the channel picker
+ * or by pasting a channel link into the matching `<name>_link` option.
+ */
 const LINK_SETTINGS = {
   log_channel: {
     label: 'Log channel',
@@ -57,6 +60,40 @@ const LINK_SETTINGS = {
   },
 };
 
+/** `<name>_link` is the paste-a-link twin of the `<name>` channel picker. */
+const linkOptionName = (key) => `${key}_link`;
+
+/**
+ * Turns a pasted channel link, `<#mention>` or ID into a channel in this guild.
+ * Returns `{ channel }` or `{ error }` with a message that says what was wrong.
+ */
+async function resolveChannel(guild, raw, meta) {
+  const channelId = parseChannelLink(raw);
+  if (!channelId) {
+    return {
+      error:
+        'that is not a channel link — right-click the channel, choose **Copy Channel Link** and paste it (`<#channel>` and a plain channel ID work too).',
+    };
+  }
+
+  const channel =
+    guild.channels.cache.get(channelId) ?? (await guild.channels.fetch(channelId).catch(() => null));
+  if (!channel) {
+    return { error: `no channel with the ID \`${channelId}\` is in this server, or I cannot see it.` };
+  }
+
+  if (!meta.types.includes(channel.type)) {
+    const wanted = meta.types.includes(ChannelType.GuildCategory)
+      ? 'a **category**'
+      : 'a **text channel**';
+    return {
+      error: `${channel.name ? `**#${channel.name}**` : 'that channel'} is not ${wanted}.`,
+    };
+  }
+
+  return { channel };
+}
+
 const data = [
   new SlashCommandBuilder()
     .setName('config')
@@ -74,7 +111,13 @@ const data = [
           opt
             .setName('log_channel')
             .setDescription('Channel for moderation and ticket logs')
-            .addChannelTypes(ChannelType.GuildText),
+            .addChannelTypes(...TEXT_CHANNELS),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName(linkOptionName('log_channel'))
+            .setDescription('…or paste the log channel link here')
+            .setMaxLength(200),
         )
         .addChannelOption((opt) =>
           opt
@@ -82,20 +125,40 @@ const data = [
             .setDescription('Category new ticket channels are created in')
             .addChannelTypes(ChannelType.GuildCategory),
         )
+        .addStringOption((opt) =>
+          opt
+            .setName(linkOptionName('ticket_category'))
+            .setDescription('…or paste the ticket category link here')
+            .setMaxLength(200),
+        )
         .addChannelOption((opt) =>
           opt
             .setName('transcript_channel')
             .setDescription('Channel ticket transcripts are uploaded to (defaults to log channel)')
-            .addChannelTypes(ChannelType.GuildText),
+            .addChannelTypes(...TEXT_CHANNELS),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName(linkOptionName('transcript_channel'))
+            .setDescription('…or paste the transcript channel link here')
+            .setMaxLength(200),
         )
         .addChannelOption((opt) =>
           opt
             .setName('application_review_channel')
             .setDescription('Channel staff review applications in')
-            .addChannelTypes(ChannelType.GuildText),
+            .addChannelTypes(...TEXT_CHANNELS),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName(linkOptionName('application_review_channel'))
+            .setDescription('…or paste the application review channel link here')
+            .setMaxLength(200),
         )
         .addRoleOption((opt) =>
-          opt.setName('application_accept_role').setDescription('Role given when an application is accepted'),
+          opt
+            .setName('application_accept_role')
+            .setDescription('Role given when an application is accepted'),
         )
         .addRoleOption((opt) =>
           opt
@@ -106,13 +169,25 @@ const data = [
           opt
             .setName('vouch_channel')
             .setDescription('Member vouch channel (defaults to any channel with “vouch” in its name)')
-            .addChannelTypes(ChannelType.GuildText),
+            .addChannelTypes(...TEXT_CHANNELS),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName(linkOptionName('vouch_channel'))
+            .setDescription('…or paste the vouch channel link here')
+            .setMaxLength(200),
         )
         .addChannelOption((opt) =>
           opt
             .setName('staff_vouch_channel')
             .setDescription('Staff vouch channel (defaults to any channel with “vouch” in its name)')
-            .addChannelTypes(ChannelType.GuildText),
+            .addChannelTypes(...TEXT_CHANNELS),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName(linkOptionName('staff_vouch_channel'))
+            .setDescription('…or paste the staff vouch channel link here')
+            .setMaxLength(200),
         )
         .addRoleOption((opt) =>
           opt
@@ -124,99 +199,8 @@ const data = [
             .setName('automod_alert_role')
             .setDescription('Role pinged when AutoMod catches a suspicious link (defaults to the staff role)'),
         ),
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName('link')
-        .setDescription('Set a channel setting by pasting a channel link')
-        .addStringOption((opt) =>
-          opt
-            .setName('setting')
-            .setDescription('Which channel setting to change')
-            .setRequired(true)
-            .addChoices(
-              ...Object.entries(LINK_SETTINGS).map(([value, meta]) => ({
-                name: meta.label,
-                value,
-              })),
-            ),
-        )
-        .addStringOption((opt) =>
-          opt
-            .setName('link')
-            .setDescription('Channel link, <#channel> mention or channel ID')
-            .setRequired(true)
-            .setMaxLength(200),
-        ),
     ),
 ];
-
-/** `/config link` — resolves a pasted link to a channel in this server. */
-async function handleLink(interaction, store, settings) {
-  const key = interaction.options.getString('setting', true);
-  const input = interaction.options.getString('link', true);
-  const meta = LINK_SETTINGS[key];
-
-  if (!meta) {
-    await interaction.reply({
-      embeds: [errorEmbed(`\`${key}\` is not a channel setting.`)],
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const channelId = parseChannelLink(input);
-  if (!channelId) {
-    await interaction.reply({
-      embeds: [
-        errorEmbed(
-          'That is not a channel link. Right-click the channel, choose **Copy Channel Link**, and paste that — `<#channel>` and a plain channel ID work too.',
-          'No channel in that link',
-        ),
-      ],
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const channel =
-    interaction.guild.channels.cache.get(channelId) ??
-    (await interaction.guild.channels.fetch(channelId).catch(() => null));
-  if (!channel) {
-    await interaction.reply({
-      embeds: [
-        errorEmbed(
-          `No channel with the ID \`${channelId}\` is in this server, or I cannot see it.`,
-          'Channel not found',
-        ),
-      ],
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  if (!meta.types.includes(channel.type)) {
-    const wanted = meta.types.includes(ChannelType.GuildCategory)
-      ? 'a **category**'
-      : 'a **text channel**';
-    await interaction.reply({
-      embeds: [
-        errorEmbed(
-          `${channel.name ? `**#${channel.name}**` : 'That channel'} is not ${wanted}, which is what **${meta.label}** needs.`,
-          'Wrong channel type',
-        ),
-      ],
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  meta.apply(settings, channel);
-  store.save();
-  await interaction.reply({
-    embeds: [successEmbed('Setting updated', `**${meta.label}** → ${channel}`)],
-  });
-}
 
 async function execute(interaction, { store }) {
   const guild = interaction.guild;
@@ -230,14 +214,7 @@ async function execute(interaction, { store }) {
     return;
   }
 
-  const subcommand = interaction.options.getSubcommand();
-
-  if (subcommand === 'link') {
-    await handleLink(interaction, store, settings);
-    return;
-  }
-
-  if (subcommand === 'view') {
+  if (interaction.options.getSubcommand() === 'view') {
     const list = (value) => (value ? `<#${value}>` : '—');
     const role = (value) => (value ? `<@&${value}>` : '—');
     const view = embed({
@@ -274,37 +251,17 @@ async function execute(interaction, { store }) {
   }
 
   const updates = [];
+  const problems = [];
+
   const staffRole = interaction.options.getRole('staff_role');
-  const logChannel = interaction.options.getChannel('log_channel');
-  const ticketCategory = interaction.options.getChannel('ticket_category');
-  const transcriptChannel = interaction.options.getChannel('transcript_channel');
-  const reviewChannel = interaction.options.getChannel('application_review_channel');
   const acceptRole = interaction.options.getRole('application_accept_role');
   const loaRole = interaction.options.getRole('loa_role');
-  const vouchChannel = interaction.options.getChannel('vouch_channel');
-  const staffVouchChannel = interaction.options.getChannel('staff_vouch_channel');
   const vouchAdminRole = interaction.options.getRole('vouch_admin_role');
   const automodAlertRole = interaction.options.getRole('automod_alert_role');
 
   if (staffRole) {
     settings.staffRoleId = staffRole.id;
     updates.push(`Staff role → ${staffRole}`);
-  }
-  if (logChannel) {
-    settings.logChannelId = logChannel.id;
-    updates.push(`Log channel → ${logChannel}`);
-  }
-  if (ticketCategory) {
-    settings.ticketCategoryId = ticketCategory.id;
-    updates.push(`Ticket category → ${ticketCategory.name}`);
-  }
-  if (transcriptChannel) {
-    settings.transcriptChannelId = transcriptChannel.id;
-    updates.push(`Transcript channel → ${transcriptChannel}`);
-  }
-  if (reviewChannel) {
-    settings.applications.reviewChannelId = reviewChannel.id;
-    updates.push(`Application review channel → ${reviewChannel}`);
   }
   if (acceptRole) {
     settings.applications.acceptRoleId = acceptRole.id;
@@ -313,14 +270,6 @@ async function execute(interaction, { store }) {
   if (loaRole) {
     settings.activity.loaRoleId = loaRole.id;
     updates.push(`LOA role → ${loaRole}`);
-  }
-  if (vouchChannel) {
-    settings.vouchChannelId = vouchChannel.id;
-    updates.push(`Vouch channel → ${vouchChannel}`);
-  }
-  if (staffVouchChannel) {
-    settings.staffVouchChannelId = staffVouchChannel.id;
-    updates.push(`Staff vouch channel → ${staffVouchChannel}`);
   }
   if (vouchAdminRole) {
     settings.vouchAdminRoleId = vouchAdminRole.id;
@@ -331,7 +280,67 @@ async function execute(interaction, { store }) {
     updates.push(`AutoMod link alerts ping → ${automodAlertRole}`);
   }
 
-  if (updates.length === 0) {
+  // Channel settings: the picker, the pasted link, or exactly one of them.
+  for (const [key, meta] of Object.entries(LINK_SETTINGS)) {
+    const picked = interaction.options.getChannel(key);
+    const pasted = interaction.options.getString(linkOptionName(key));
+
+    if (picked && pasted) {
+      problems.push(
+        `**${meta.label}**: pick it in \`${key}\` or paste a link in \`${linkOptionName(key)}\`, not both.`,
+      );
+      continue;
+    }
+
+    if (picked) {
+      if (!meta.types.includes(picked.type)) {
+        const wanted = meta.types.includes(ChannelType.GuildCategory)
+          ? 'a **category**'
+          : 'a **text channel**';
+        problems.push(`**${meta.label}**: ${picked.name ? `**#${picked.name}**` : 'that channel'} is not ${wanted}.`);
+        continue;
+      }
+      meta.apply(settings, picked);
+      updates.push(`${meta.label} → ${picked}`);
+      continue;
+    }
+
+    if (pasted) {
+      const { channel, error } = await resolveChannel(guild, pasted, meta);
+      if (error) {
+        problems.push(`**${meta.label}**: ${error}`);
+        continue;
+      }
+      meta.apply(settings, channel);
+      updates.push(`${meta.label} → ${channel}`);
+    }
+  }
+
+  if (problems.length && !updates.length) {
+    await interaction.reply({
+      embeds: [errorEmbed(problems.join('\n'), 'Setting not changed')],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (updates.length) store.save();
+
+  if (problems.length) {
+    await interaction.reply({
+      embeds: [
+        embed({
+          title: 'Settings partly updated',
+          description: [...updates, '', '⚠️ **Not changed**', ...problems].join('\n'),
+          color: COLORS.warning,
+        }),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (!updates.length) {
     await interaction.reply({
       embeds: [errorEmbed('Nothing was provided. Pass at least one option, or use `/config view`.')],
       flags: MessageFlags.Ephemeral,
@@ -339,8 +348,7 @@ async function execute(interaction, { store }) {
     return;
   }
 
-  store.save();
   await interaction.reply({ embeds: [successEmbed('Settings updated', updates.join('\n'))] });
 }
 
-module.exports = { data, execute };
+module.exports = { LINK_SETTINGS, data, execute, resolveChannel };

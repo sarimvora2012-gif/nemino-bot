@@ -182,7 +182,7 @@ async function execute(interaction, { client }) {
           '`!staffguide` — post the full staff command guide (staff only)',
           '`/config view` — show current settings',
           '`/config set` — staff role, log channel, ticket category, transcript channel, LOA role',
-          '`/config link setting:<name> link:<channel link>` — set a channel by pasting its link',
+          '`/config set log_channel_link:<channel link>` — every channel setting has a `_link` twin you can paste into',
           'Application review channel and accept role also live in `/config set`',
           '`!stafffont [@role]` — rename the staff roles into small caps (admin only)',
           '',

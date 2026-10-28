@@ -19,9 +19,24 @@ const root = path.join(__dirname, '..');
 const commandDir = path.join(root, 'src', 'commands');
 
 let failures = 0;
+/** Async tests report once they settle, just before the summary is printed. */
+const pendingTests = [];
 function test(name, fn) {
   try {
-    fn();
+    const result = fn();
+    if (result && typeof result.then === 'function') {
+      pendingTests.push(
+        result.then(
+          () => console.log(`  ✓ ${name}`),
+          (err) => {
+            failures += 1;
+            console.error(`  ✗ ${name}`);
+            console.error(`    ${err.message}`);
+          },
+        ),
+      );
+      return;
+    }
     console.log(`  ✓ ${name}`);
   } catch (err) {
     failures += 1;
@@ -1186,6 +1201,76 @@ test('channel links are read from pasted URLs, mentions and bare IDs', () => {
   assert.equal(parseChannelLink(undefined), null);
 });
 
+test('/config set offers a link option next to every channel picker', () => {
+  const configJson = modules.config.data[0].toJSON();
+  const setJson = configJson.options.find((option) => option.name === 'set');
+  const names = setJson.options.map((option) => option.name);
+
+  for (const key of [
+    'log_channel',
+    'ticket_category',
+    'transcript_channel',
+    'application_review_channel',
+    'vouch_channel',
+    'staff_vouch_channel',
+  ]) {
+    assert.ok(names.includes(key), `${key} picker is still there`);
+    assert.ok(names.includes(`${key}_link`), `${key}_link is missing`);
+  }
+
+  assert.equal(
+    configJson.options.some((option) => option.name === 'link'),
+    false,
+    'links live inside /config set, not a separate subcommand',
+  );
+  for (const option of setJson.options.filter((entry) => entry.name.endsWith('_link'))) {
+    assert.equal(option.type, 3, `${option.name} must be a string option so a link can be pasted`);
+    assert.ok(option.name.length <= 32, `${option.name} is too long`);
+    assert.ok(option.description.length <= 100, `${option.name} description is too long`);
+  }
+});
+
+test('a pasted link is resolved to a real channel of the right type', async () => {
+  const configModule = require('../src/commands/config');
+  const { ChannelType } = require('discord.js');
+  const text = { id: '223456789012345678', name: 'bot-logs', type: ChannelType.GuildText };
+  const category = { id: '323456789012345678', name: 'Tickets', type: ChannelType.GuildCategory };
+  const guild = {
+    channels: {
+      cache: new Map([[text.id, text], [category.id, category]]),
+      fetch: async () => null,
+    },
+  };
+
+  const logLink = `https://discord.com/channels/123456789012345678/${text.id}`;
+  const logResult = await configModule.resolveChannel(guild, logLink, configModule.LINK_SETTINGS.log_channel);
+  assert.equal(logResult.channel?.id, text.id, 'the log channel resolves from a pasted link');
+
+  const categoryResult = await configModule.resolveChannel(
+    guild,
+    `<#${category.id}>`,
+    configModule.LINK_SETTINGS.ticket_category,
+  );
+  assert.equal(categoryResult.channel?.id, category.id, 'a category resolves too');
+
+  const wrongType = await configModule.resolveChannel(
+    guild,
+    logLink,
+    configModule.LINK_SETTINGS.ticket_category,
+  );
+  assert.match(wrongType.error, /not a \*\*category\*\*/);
+
+  const unknown = await configModule.resolveChannel(
+    guild,
+    'https://discord.com/channels/123456789012345678/999456789012345678',
+    configModule.LINK_SETTINGS.log_channel,
+  );
+  assert.match(unknown.error, /no channel with the ID/);
+
+  const garbage = await configModule.resolveChannel(guild, 'the log channel', configModule.LINK_SETTINGS.log_channel);
+  assert.match(garbage.error, /not a channel link/);
+});
+
 test('nickname updates explain why Discord refuses them', () => {
   const { PermissionFlagsBits } = require('discord.js');
   const build = ({ has = true, mine = 10, theirs = 1, ownerId = 'owner' } = {}) => {
@@ -1690,8 +1775,7 @@ test('only the owner, Manage Server or the announced role may post', () => {
   assert.equal(media.canAnnounce(member('1', [], []), mediaGuild, role), false);
 });
 
-console.log(`\n${failures === 0 ? '✅ All checks passed' : `❌ ${failures} check(s) failed`}`);
-console.log(`   ${jsonByName.size} commands: ${[...jsonByName.keys()].map((n) => `/${n}`).join(', ')}\n`);
+const commandCountLine = `   ${jsonByName.size} commands: ${[...jsonByName.keys()].map((n) => `/${n}`).join(', ')}`;
 test('env loader accepts .env, wispbyte.env and env', () => {
   const { ENV_FILES } = require(path.join(root, 'src', 'lib', 'env'));
   assert.deepEqual(ENV_FILES, ['.env', 'wispbyte.env', 'env']);
@@ -1720,4 +1804,8 @@ test('ticket channels are named after the member, safely', () => {
   assert.equal(categoryKey('application'), 'application');
 });
 
-process.exit(failures === 0 ? 0 : 1);
+Promise.all(pendingTests).then(() => {
+  console.log(`\n${failures === 0 ? '✅ All checks passed' : `❌ ${failures} check(s) failed`}`);
+  console.log(`${commandCountLine}\n`);
+  process.exit(failures === 0 ? 0 : 1);
+});

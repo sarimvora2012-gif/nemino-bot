@@ -84,13 +84,23 @@ Run these once in your server:
 /config set staff_role:@Staff log_channel:#bot-logs ticket_category:#Tickets transcript_channel:#ticket-transcripts loa_role:@LOA
 ```
 
-Every channel setting also accepts a pasted link, which is handy when the picker will not show the channel:
+Every channel setting has a link twin right next to its picker, so you can paste a copied channel link instead of scrolling the menu:
 
 ```text
-/config link setting:log_channel link:https://discord.com/channels/123456789012345678/223456789012345678
+/config set log_channel_link:https://discord.com/channels/123456789012345678/223456789012345678
+/config set ticket_category_link:https://discord.com/channels/123456789012345678/323456789012345678
 ```
 
-`<#channel>` mentions and plain channel IDs work too. Settings available this way: `log_channel`, `ticket_category`, `transcript_channel`, `application_review_channel`, `vouch_channel`, `staff_vouch_channel`. The link must point at a channel in this server, and a category setting refuses a normal channel (and the other way round).
+| Picker | Paste option |
+| --- | --- |
+| `log_channel` | `log_channel_link` |
+| `ticket_category` | `ticket_category_link` |
+| `transcript_channel` | `transcript_channel_link` |
+| `application_review_channel` | `application_review_channel_link` |
+| `vouch_channel` | `vouch_channel_link` |
+| `staff_vouch_channel` | `staff_vouch_channel_link` |
+
+`<#channel>` mentions and plain channel IDs work in the paste options too. The link must point at a channel in this server, a category setting refuses a normal channel (and the other way round), and passing both the picker and its link is refused with a message saying so.
 
 1. **Tickets** — in your #create-a-ticket channel:
    ```text
@@ -356,7 +366,7 @@ The guide covers only what staff need day to day: tickets, applications, giveawa
 | `/help` | Command overview |
 | `/ping` | Latency check |
 | `/config view` / `/config set ...` | View or change server settings (Manage Server only) |
-| `/config link setting:<name> link:<url>` | Set a channel setting by pasting a channel link |
+| `/config set <name>_link:<url>` | Set a channel setting by pasting a channel link |
 | `/vouch leaderboard` | Top 10 most vouched members |
 | `!to @user 10m [reason]` | Timeout a member (Timeout Members) |
 | `!vouchadd @user 5` | Add vouches (owner / co-owner) |
@@ -419,7 +429,8 @@ All embeds are created through `embed()` in `src/lib/helpers.js`, which automati
 | Promotion embed did not post | Check <#1528259332876275742> still exists and the bot can **View Channel** and **Send Messages** there |
 | `:vouch @user` does nothing | The channel name must contain “vouch”, or set it with `/config set vouch_channel:#channel`; the message must mention a member |
 | Nicknames are not updating | The bot's role needs **Manage Nicknames** and must be above the member's highest role; server owners cannot be renamed. Fix the permission, then run `!vouchresync` |
-| `/config link` says no channel found | The link must belong to this server and the bot must be able to see that channel |
+| A `_link` option says no channel found | The link must belong to this server and the bot must be able to see that channel |
+| A `_link` option says “not a channel link” | Copy it with right-click → **Copy Channel Link**; `<#channel>` and bare IDs work too |
 | `!stafffont` leaves top roles alone | Those roles sit at or above the bot's own role; drag the bot role above them and run it again |
 | The vouch panel is not at the bottom | It is reposted after every vouch. If the channel goes quiet after a refresh it stays put until the next vouch; run `!vouchsetup` to move it down manually |
 | `!to` is refused | You need **Timeout Members**, the member must be below your highest role, and the bot role must be above theirs |
