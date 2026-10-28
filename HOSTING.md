@@ -80,6 +80,10 @@ No spaces around the `=` signs. The bot reads whichever of the two it finds.
 The panel calls it **Server Configuration** or **Startup**. It's a grid of boxes; almost
 all of them stay empty because you are uploading files instead of using GitHub.
 
+> This section is the **zip upload** path. If you connected a GitHub repo instead, stop —
+> use the GitHub Integration page described in "Updating the bot later" at the end of this
+> guide, and keep **User Uploaded Files** at `0`.
+
 | Box | Set it to |
 | --- | --- |
 | Git Repo Address | **empty** |
@@ -149,9 +153,17 @@ git branch -M main
 git push -u origin main
 ```
 
-3. In the panel: **Git Repo Address** = `https://github.com/YOUR-USERNAME/nemino-bot.git`,
-   **Install Branch** = `main`, **Auto Update** = `1`, **User Uploaded Files** = `0`, then
-   **Reinstall Server**. Every restart pulls the latest commit.
+3. In the panel: server sidebar → **General** → **GitHub Integration**. Set
+   **Git Repo Address** = `https://github.com/YOUR-USERNAME/nemino-bot.git`,
+   **Install Branch** = `main`, **Auto Update** = `1`, **User Uploaded Files** = `0`, save each
+   tile, then press **Clone** at the top of the page (first time only). Later updates use
+   **Pull**. There is no "Reinstall Server" button in this panel.
+
+> If that page says **GitHub Unavailable**, the server's egg does not support Git. Create the
+> server with a GitHub-compatible Node.js egg, or stay on the zip upload method below.
+
+> **Clone or Pull can overwrite files on the server.** Download `data/data.json` first, and
+> keep `DISCORD_TOKEN` and friends in Startup → Environment Variables rather than a `.env`.
 
 For a **private** repo, paste a GitHub token with `repo` scope into the panel's **Git Access
 Token** box. The token still comes from the `.env` you uploaded or the Startup variables.
