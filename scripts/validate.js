@@ -1355,6 +1355,23 @@ test('prices allow up to two decimals and letters are rejected', () => {
   assert.equal(spawners.applyPrice(settings, 'pig', 'hold', 5), null, 'unknown mode');
 });
 
+test('the ticket total is the current price times the amount', () => {
+  assert.equal(spawners.formatMillions(13 * 8), '104M');
+  assert.equal(spawners.formatMillions(12.75 * 8), '102M', 'float noise is rounded away');
+  assert.equal(spawners.formatMillions(0.75 * 3), '2.25M');
+  assert.equal(spawners.formatMillions(1_500_000), '1500000M', 'totals may pass the unit cap');
+  assert.equal(spawners.formatMillions('nope'), null);
+
+  assert.equal(spawners.parseAmount('8').value, 8, 'whole numbers');
+  assert.equal(spawners.parseAmount('1,000').value, 1000, 'thousands separators are fine');
+  assert.equal(spawners.parseAmount(' 16 ').value, 16);
+  assert.equal(spawners.parseAmount('0').ok, false, 'zero is not an order');
+  assert.equal(spawners.parseAmount('-3').ok, false);
+  assert.equal(spawners.parseAmount('2.5').ok, false, 'no half spawners');
+  assert.equal(spawners.parseAmount('many').ok, false);
+  assert.equal(spawners.parseAmount('').ok, false);
+});
+
 test('spawner emojis use the server custom emoji with a fallback', () => {
   const skeleton = spawners.spawnerByKey('skeleton');
   assert.equal(spawners.spawnerEmoji(noEmojiGuild, skeleton), '💀');

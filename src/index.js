@@ -214,9 +214,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (interaction.isButton() || interaction.isModalSubmit()) {
+    if (
+      interaction.isButton() ||
+      interaction.isModalSubmit() ||
+      interaction.isStringSelectMenu()
+    ) {
       const mod = getComponentModule(interaction.customId);
-      const handler = interaction.isButton() ? mod?.handleButton : mod?.handleModal;
+      const handler = interaction.isButton()
+        ? mod?.handleButton
+        : interaction.isModalSubmit()
+          ? mod?.handleModal
+          : mod?.handleSelect;
       if (!handler) return;
       await handler(interaction, context);
     }

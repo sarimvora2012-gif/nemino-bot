@@ -15,9 +15,14 @@ const {
   ButtonStyle,
   ContainerBuilder,
   MessageFlags,
+  ModalBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   TextDisplayBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } = require('discord.js');
 const { embed, errorEmbed, successEmbed, infoEmbed, COLORS, isStaff } = require('./helpers');
 const { toSmallCaps } = require('./smallcaps');
@@ -31,6 +36,7 @@ const ACCENT = 0xf1c40f;
 const MAX_PRICE = 1_000_000;
 const MIN_PRICE = 0.01;
 const MAX_DECIMALS = 2;
+const MAX_AMOUNT = 100_000;
 
 /** Display order is fixed: it is the order people expect on the board. */
 const SPAWNER_TYPES = [
@@ -107,7 +113,31 @@ function validatePrice(input) {
 function formatPrice(value) {
   const parsed = validatePrice(value);
   if (!parsed.ok) return null;
-  return `${parsed.value.toFixed(2).replace(/\.?0+$/, '')}M`;
+  return formatMillions(parsed.value);
+}
+
+/** Millions with at most two decimals, for totals that can exceed a unit price. */
+function formatMillions(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  const rounded = Math.round(number * 100) / 100;
+  return `${rounded.toFixed(2).replace(/\.?0+$/, '')}M`;
+}
+
+/** Reads the amount typed into the ticket modal. Whole numbers only. */
+function parseAmount(input) {
+  const text = String(input ?? '')
+    .trim()
+    .replace(/[,\s]/g, '');
+  if (!/^\d+$/.test(text)) {
+    return { ok: false, message: 'Whole numbers only — for example `8` or `16`.' };
+  }
+  const value = Number(text);
+  if (value < 1) return { ok: false, message: 'You need at least **1** spawner.' };
+  if (value > MAX_AMOUNT) {
+    return { ok: false, message: `The most you can order at once is **${MAX_AMOUNT}**.` };
+  }
+  return { ok: true, value };
 }
 
 function pricesFor(settings, mode) {
@@ -267,10 +297,20 @@ async function ensurePanel(guild, settings, store, channel) {
   return message;
 }
 
-function ticketIntro({ user, mode, guild, settings, channelId }) {
+function ticketIntro({ user, mode, guild, settings, channelId, order = null }) {
   const buying = mode === 'buy';
   const prices = pricedLines(guild, settings, mode);
   const lines = prices.length ? prices.join('\n') : '— no prices listed yet';
+
+  const orderLines = order
+    ? [
+        '',
+        `**Spawner:** ${spawnerEmoji(guild, order.type)} ${order.type.label}`,
+        `**Amount:** ${order.quantity}`,
+        `**Price each:** ${order.unitPrice}`,
+        `**Total price:** ${order.total}`,
+      ]
+    : [];
 
   return {
     embeds: [
@@ -278,6 +318,7 @@ function ticketIntro({ user, mode, guild, settings, channelId }) {
         title: buying ? '🛒 Spawner purchase ticket' : '💰 Spawner sale ticket',
         description: [
           `Hey ${user}, a member of the team will be with you shortly.`,
+          ...orderLines,
           '',
           buying
             ? 'Tell us **which spawners** you want and **how many**.'
@@ -303,26 +344,157 @@ function ticketIntro({ user, mode, guild, settings, channelId }) {
   };
 }
 
+/** Spawners with a price in this mode, as select options. */
+function pricedOptions(guild, settings, mode) {
+  const options = [];
+  for (const type of SPAWNER_TYPES) {
+    const price = formatPrice(pricesFor(settings, mode)[type.key]);
+    if (!price) continue;
+    options.push(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(`${type.label} — ${price} each`)
+        .setValue(type.key),
+    );
+  }
+  return options;
+}
+
+/**
+ * Buy/sell button. Each spawner has its own price, so the spawner is picked
+ * first and the amount is asked for in a modal next.
+ */
 async function handleButton(interaction, { store }) {
   const [, action] = String(interaction.customId).split(':');
   const mode = action === 'buy' || action === 'sell' ? action : null;
   if (!mode) return;
 
-  const guild = interaction.guild;
-  const settings = store.guild(guild.id);
+  const settings = store.guild(interaction.guild.id);
+  const options = pricedOptions(interaction.guild, settings, mode);
 
-  const existingId = store.openTicketFor(guild.id, interaction.user.id);
-  const existing = existingId ? guild.channels.cache.get(existingId) : null;
-  if (existing) {
+  if (!options.length) {
     await interaction.reply({
-      embeds: [infoEmbed('You already have an open ticket', `Head over to ${existing} to continue.`)],
+      embeds: [
+        errorEmbed(
+          `No **${mode === 'buy' ? 'buying' : 'selling'}** prices are set yet, so there is nothing to ${mode}.`,
+          'No prices set',
+        ),
+      ],
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
-  if (existingId) store.removeTicket(existingId);
+
+  await interaction.reply({
+    embeds: [
+      embed({
+        title: mode === 'buy' ? '🛒 Buying spawners' : '💰 Selling spawners',
+        description: 'Pick the spawner first — then tell me how many you want.',
+        color: mode === 'buy' ? COLORS.danger : COLORS.success,
+      }),
+    ],
+    components: [
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`spawner:pick:${mode}`)
+          .setPlaceholder('Choose a spawner')
+          .addOptions(options),
+      ),
+    ],
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+/** A spawner was picked: ask how many with a modal. */
+async function handleSelect(interaction, { store }) {
+  const [, action, mode] = String(interaction.customId).split(':');
+  if (action !== 'pick' || (mode !== 'buy' && mode !== 'sell')) return;
+
+  const type = spawnerByKey(interaction.values?.[0]);
+  const settings = store.guild(interaction.guild.id);
+  const price = type ? formatPrice(pricesFor(settings, mode)[type.key]) : null;
+
+  if (!type || !price) {
+    await interaction.reply({
+      embeds: [
+        errorEmbed(
+          'That spawner has no price any more. Open the prices board and try again.',
+          'Price removed',
+        ),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`spawner:qty:${mode}:${type.key}`)
+    .setTitle(`${type.label} — ${price} each`.slice(0, 45))
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('amount')
+          .setLabel(`How many ${type.label} spawners?`)
+          .setPlaceholder('e.g. 8')
+          .setStyle(TextInputStyle.Short)
+          .setMinLength(1)
+          .setMaxLength(7)
+          .setRequired(true),
+      ),
+    );
+
+  await interaction.showModal(modal);
+}
+
+/** The amount was entered: price × amount, shown in the ticket as the total. */
+async function handleModal(interaction, { store }) {
+  const [, action, mode, key] = String(interaction.customId).split(':');
+  if (action !== 'qty' || (mode !== 'buy' && mode !== 'sell')) return;
+
+  const guild = interaction.guild;
+  const settings = store.guild(guild.id);
+  const type = spawnerByKey(key);
+  const unit = type ? validatePrice(pricesFor(settings, mode)[type.key]) : { ok: false };
+
+  if (!type || !unit.ok) {
+    await interaction.reply({
+      embeds: [
+        errorEmbed(
+          'That price was changed or removed while you were typing. Open the board and try again.',
+          'Price removed',
+        ),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const amount = parseAmount(interaction.fields.getTextInputValue('amount'));
+  if (!amount.ok) {
+    await interaction.reply({
+      embeds: [errorEmbed(amount.message, 'That is not a valid amount')],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const order = {
+    type,
+    quantity: amount.value,
+    unitPrice: formatPrice(unit.value),
+    total: formatMillions(unit.value * amount.value),
+  };
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const existingId = store.openTicketFor(guild.id, interaction.user.id);
+  const existing = existingId ? guild.channels.cache.get(existingId) : null;
+  if (existing) {
+    await interaction.editReply({
+      embeds: [infoEmbed('You already have an open ticket', `Head over to ${existing} to continue.`)],
+    });
+    return;
+  }
+  if (existingId) store.removeTicket(existingId);
 
   let channel;
   let number;
@@ -335,7 +507,7 @@ async function handleButton(interaction, { store }) {
       ownerId: interaction.user.id,
       categoryId: TICKET_CATEGORY_ID,
       type: `spawner-${mode}`,
-      topic: `Spawner ${mode === 'buy' ? 'purchase' : 'sale'} · <@${interaction.user.id}> (${interaction.user.id})`,
+      topic: `Spawner ${mode === 'buy' ? 'purchase' : 'sale'} · ${order.quantity}x ${type.label} @ ${order.unitPrice} · total ${order.total} · <@${interaction.user.id}> (${interaction.user.id})`,
       reason: `Spawner ${mode} ticket opened by ${interaction.user.tag}`,
     }));
   } catch (err) {
@@ -357,6 +529,7 @@ async function handleButton(interaction, { store }) {
     guild,
     settings,
     channelId: channel.id,
+    order,
   });
   await channel.send({ ...payload, allowedMentions: { parse: [] } }).catch(() => {});
 
@@ -364,7 +537,11 @@ async function handleButton(interaction, { store }) {
     embeds: [
       successEmbed(
         mode === 'buy' ? 'Purchase ticket opened' : 'Sale ticket opened',
-        `Ticket #${String(number).padStart(4, '0')} is ready: ${channel}`,
+        [
+          `Ticket #${String(number).padStart(4, '0')} is ready: ${channel}`,
+          `**${order.quantity}x ${type.label}** at ${order.unitPrice} each`,
+          `**Total price:** ${order.total}`,
+        ].join('\n'),
       ),
     ],
   });
@@ -415,9 +592,14 @@ module.exports = {
   TICKET_CATEGORY_ID,
   applyPrice,
   ensurePanel,
+  formatMillions,
   formatPrice,
   handleButton,
   handleMessage,
+  handleModal,
+  handleSelect,
+  parseAmount,
+  pricedOptions,
   panelPayload,
   priceLine,
   refreshPanel,
