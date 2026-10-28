@@ -6,7 +6,8 @@ const path = require('node:path');
 // Always read the env file that sits next to package.json, no matter which
 // working directory the hosting panel starts the process from. `.env`,
 // `wispbyte.env` and `env` are all accepted.
-require('./lib/env').loadEnv();
+const env = require('./lib/env');
+env.loadEnv();
 const {
   Client,
   GatewayIntentBits,
@@ -76,8 +77,11 @@ if (!token) {
       '  CLIENT_ID=your-application-id',
       '  GUILD_ID=your-server-id',
       '',
-      'On a hosting panel: upload your local .env in the Files tab, or set those',
-      'same names in the panel environment variables and restart the server.',
+      `Project folder: ${env.ROOT}`,
+      `Files there: ${env.rootListing()}`,
+      `Env-like files there: ${env.envCandidates() || 'none'}`,
+      '',
+      'Upload the file into the folder listed above, then restart the server.',
     ].join('\n'),
   );
   process.exit(1);
