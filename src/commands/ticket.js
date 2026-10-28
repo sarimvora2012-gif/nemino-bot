@@ -217,9 +217,31 @@ async function execute(interaction, { store }) {
   }
 }
 
+/** Discord-safe channel text: lower case, no spaces, only letters, digits, . _ - */
+function channelSlug(text) {
+  return (
+    String(text ?? '')
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, '-')
+      .replace(/-{2,}/g, '-')
+      .replace(/^[-.]+|[-.]+$/g, '')
+      .slice(0, 60) || 'member'
+  );
+}
+
+/** The member's Discord username (not nickname), fetched if it is not cached. */
+async function usernameOf(client, guild, userId) {
+  const cached =
+    guild.members.cache.get(userId)?.user ?? client.users.cache.get(userId) ?? null;
+  if (cached?.username) return cached.username;
+  const fetched = await client.users.fetch(userId).catch(() => null);
+  return fetched?.username ?? 'member';
+}
+
 /**
  * Creates a private ticket channel and stores it. Shared by the ticket panel and
  * giveaway prize claims, so both support `/ticket close` and transcripts.
+ * The channel is named after the member's username, e.g. `ᴛɪᴄᴋᴇᴛ-sarimvora`.
  */
 async function createTicketChannel({
   client,
@@ -288,8 +310,16 @@ async function createTicketChannel({
     });
   }
 
+  // Discord requires channel names to be unique in a guild, so a member opening a
+  // second ticket gets -2, -3 rather than the same name.
+  const baseName = `${toSmallCaps('ticket')}-${channelSlug(await usernameOf(client, guild, ownerId))}`;
+  let name = baseName;
+  for (let suffix = 2; guild.channels.cache.some((c) => c.name === name) && suffix < 50; suffix += 1) {
+    name = `${baseName}-${suffix}`;
+  }
+
   const channel = await guild.channels.create({
-    name: `${toSmallCaps('ticket')}-${String(number).padStart(4, '0')}`,
+    name,
     type: ChannelType.GuildText,
     parent: category?.id ?? null,
     topic:
@@ -786,6 +816,7 @@ module.exports = {
   openTicket,
   closeTicket,
   createTicketChannel,
+  channelSlug,
   canCloseTicket,
   deleteTicketChannel,
   sweepClosedTickets,

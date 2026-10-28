@@ -1577,4 +1577,13 @@ test('env loader accepts .env, wispbyte.env and env', () => {
   assert.deepEqual(ENV_FILES, ['.env', 'wispbyte.env', 'env']);
 });
 
+test('ticket channels are named after the member, safely', () => {
+  const { channelSlug } = require(path.join(root, 'src', 'commands', 'ticket'));
+  assert.equal(channelSlug('sarimvora2012'), 'sarimvora2012');
+  assert.equal(channelSlug('Some.User'), 'some.user');
+  assert.equal(channelSlug('weird name!!'), 'weird-name');
+  assert.equal(channelSlug('--trailing--'), 'trailing');
+  assert.equal(channelSlug(''), 'member');
+});
+
 process.exit(failures === 0 ? 0 : 1);
