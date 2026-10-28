@@ -1446,6 +1446,114 @@ test('role icons apply as emoji when no server art exists', async () => {
   assert.equal(emojiTag(null), '');
 });
 
+test('the level curve gets steeper each level', () => {
+  const levels = require('../src/lib/levels');
+  assert.equal(levels.xpForLevel(0), 100);
+  assert.equal(levels.xpForLevel(1), 155);
+  assert.equal(levels.xpForLevel(2), 220);
+  assert.equal(levels.totalXpForLevel(2), 255, 'reaching level 2 takes 100 + 155');
+
+  assert.deepEqual(
+    [levels.levelFromXp(0).level, levels.levelFromXp(99).level, levels.levelFromXp(100).level],
+    [0, 0, 1],
+  );
+  const level2 = levels.levelFromXp(255);
+  assert.equal(level2.level, 2);
+  assert.equal(level2.xpIntoLevel, 0);
+  assert.equal(level2.xpForNext, 220);
+  assert.equal(levels.levelFromXp(-50).totalXp, 0, 'negative XP is clamped');
+  assert.equal(levels.levelFromXp('nonsense').level, 0);
+});
+
+test('messages earn XP once per cooldown', () => {
+  const levels = require('../src/lib/levels');
+  const settings = {
+    levels: {
+      enabled: true,
+      announce: true,
+      announceChannelId: null,
+      xpMin: 20,
+      xpMax: 20,
+      cooldownSeconds: 60,
+      users: {},
+    },
+  };
+  const store = { guild: () => settings, save: () => {} };
+  const message = (id = 'u1') => ({
+    guild: { id: 'g' },
+    channel: { id: 'c1', isTextBased: () => true, isDMBased: () => false },
+    author: { id, bot: false },
+  });
+
+  const first = levels.awardMessage(message(), store);
+  assert.equal(first.gained, 20);
+  assert.equal(settings.levels.users.u1.xp, 20);
+  assert.equal(settings.levels.users.u1.messages, 1);
+  assert.equal(first.levelUp, null, 'one message is not a level');
+
+  const second = levels.awardMessage(message(), store);
+  assert.equal(second, null, 'cooldown blocks the XP');
+  assert.equal(settings.levels.users.u1.xp, 20, 'XP unchanged');
+  assert.equal(settings.levels.users.u1.messages, 2, 'the message still counts');
+
+  settings.levels.users.u1.lastAt = Date.now() - 120_000;
+  const third = levels.awardMessage(message(), store);
+  assert.equal(third.gained, 20, 'XP resumes after the cooldown');
+
+  const bot = levels.awardMessage({ ...message('b1'), author: { id: 'b1', bot: true } }, store);
+  assert.equal(bot, null, 'bots never earn XP');
+
+  settings.levels.enabled = false;
+  assert.equal(levels.awardMessage(message('u2'), store), null, 'the system can be switched off');
+});
+
+test('crossing a threshold reports a level-up', () => {
+  const levels = require('../src/lib/levels');
+  const settings = {
+    levels: { enabled: true, announce: true, xpMin: 30, xpMax: 30, cooldownSeconds: 0, users: { u1: { xp: 90, messages: 5, lastAt: 0 } } },
+  };
+  const store = { guild: () => settings, save: () => {} };
+  const result = levels.awardMessage(
+    { guild: { id: 'g' }, channel: { id: 'c1', isTextBased: () => true, isDMBased: () => false }, author: { id: 'u1', bot: false } },
+    store,
+  );
+  assert.equal(result.levelUp.level, 1, '120 XP passes the 100 XP threshold');
+  assert.equal(result.levelUp.xpIntoLevel, 20);
+  assert.equal(result.levelUp.xpForNext, 155);
+});
+
+test('the leaderboard orders by XP and rank cards show progress', () => {
+  const levels = require('../src/lib/levels');
+  const settings = {
+    levels: {
+      users: {
+        a: { xp: 400, messages: 40 },
+        b: { xp: 900, messages: 12 },
+        c: { xp: 0, messages: 0 },
+      },
+    },
+  };
+  assert.deepEqual(levels.entries(settings).map((entry) => entry.id), ['b', 'a'], 'most XP first, empty records skipped');
+  assert.equal(levels.positionOf(settings, 'a'), 2);
+  assert.equal(levels.positionOf(settings, 'nobody'), null);
+
+  const member = {
+    id: 'a',
+    user: { username: 'Frost' },
+    displayAvatarURL: () => 'https://cdn/avatar.png',
+  };
+  const card = levels.rankCard({ name: 'Arcane' }, settings, member);
+  const text = textOf(card);
+  assert.ok(text.includes('LEVEL 2'), '400 XP is level 2');
+  assert.ok(text.includes('rank #2'), 'shows the leaderboard place');
+  assert.ok(/\d+\/\d+ XP/.test(text), 'shows XP progress');
+  assert.ok(text.includes('made by seraphum'));
+
+  const top = textOf(levels.leaderboardCard({ name: 'Arcane', iconURL: () => null }, settings));
+  assert.ok(top.includes('<@b>') && top.includes('Level 4'), 'leaderboard shows levels (900 XP)');
+  assert.ok(!top.includes('<@c>'), 'members without XP are hidden');
+});
+
 test('nickname updates explain why Discord refuses them', () => {
   const { PermissionFlagsBits } = require('discord.js');
   const build = ({ has = true, mine = 10, theirs = 1, ownerId = 'owner' } = {}) => {

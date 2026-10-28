@@ -47,6 +47,16 @@ function defaultGuild() {
       current: null,
       lastCheck: null,
     },
+    // XP is stored per member as { xp, messages, lastAt }; the curve lives in lib/levels.js.
+    levels: {
+      enabled: true,
+      announce: true,
+      announceChannelId: null,
+      xpMin: 15,
+      xpMax: 25,
+      cooldownSeconds: 60,
+      users: {},
+    },
     honeypot: { channelId: null, messageId: null, inviteUrl: null },
     spawners: { buy: {}, sell: {}, panelChannelId: null, panelMessageId: null },
     stream: {
@@ -119,6 +129,8 @@ class Store {
     guild.applications = { ...defaults.applications, ...guild.applications };
     guild.activity = { ...defaults.activity, ...guild.activity };
     guild.honeypot = { ...defaults.honeypot, ...guild.honeypot };
+    guild.levels = { ...defaults.levels, ...guild.levels };
+    guild.levels.users = { ...(guild.levels.users ?? {}) };
     guild.spawners = {
       ...defaults.spawners,
       ...guild.spawners,

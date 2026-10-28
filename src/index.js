@@ -21,6 +21,7 @@ const { errorEmbed } = require('./lib/helpers');
 const activity = require('./lib/activity');
 const automod = require('./lib/automod');
 const honeypot = require('./lib/honeypot');
+const levels = require('./lib/levels');
 const loa = require('./lib/loa');
 const membercount = require('./lib/membercount');
 const rolefont = require('./lib/rolefont');
@@ -177,6 +178,9 @@ client.on(Events.MessageCreate, (message) => {
   roleicons
     .handleMessage(message, context)
     .catch((err) => console.error('[roleicons] Message handler failed:', err));
+  levels
+    .handleMessage(message, context)
+    .catch((err) => console.error('[levels] Message handler failed:', err));
   automod
     .handleMessage(message, context)
     .catch((err) => console.error('[automod] Message handler failed:', err));

@@ -96,6 +96,15 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
+        name: '📈 Levels',
+        value: [
+          '`/level rank [user]` — level, rank, XP and progress',
+          '`/level top` — the 10 members with the most XP',
+          '`/level settings` — XP per message, cooldown, announce channel (admin)',
+          '`/level setxp user:@member xp:<n>` — set total XP (admin)',
+        ].join('\n'),
+      },
+      {
         name: '💡 Suggestions',
         value: [
           '`/suggestion suggestion:<text>` — post a suggestion',

@@ -301,6 +301,20 @@ The panel is deliberately one plain message line — `Vouches must be in the for
 
 Self-vouches and vouches for bots are refused. `!vouchadd` works for the server owner, anyone whose role name contains “owner” (e.g. Co-Owner), and any role set with `/config set vouch_admin_role:@role`; staff without one of those cannot add vouches. The “owner” name match ignores the font, so restyled roles such as `👑 ᴄᴏ-ᴏᴡɴᴇʀ` still count. Manual additions are logged in the configured log channel.
 
+### Levels
+| Command | Description |
+| --- | --- |
+| `/level rank [user]` | A member's level, rank, XP and progress bar |
+| `/level top` | The 10 members with the most XP |
+| `/level settings [enabled] [announce] [announce_channel] [xp_min] [xp_max] [cooldown]` | View or change XP earning (Manage Server) |
+| `/level setxp user:@member xp:<n>` | Set a member's total XP — handy for porting levels from another bot |
+
+Every message earns **15–25 XP** (random per message) with a **60-second cooldown**, so chatting normally levels someone while spam cannot. Bots, DMs and non-text channels are ignored. The curve is `5n² + 50n + 100` XP per level — 100 XP to level 1, 155 to level 2, 220 to level 3 — so the first levels come fast and later ones stretch.
+
+Level-ups post a small card in the channel where they happened, or in the channel set with `/level settings announce_channel:#channel`; `announce:false` keeps them silent and the levels still count. XP is saved to `data/data.json` under `levels.users`, written at most once every 5 seconds instead of on every message, so a busy server does not hammer the disk.
+
+Levels are counted by this bot only — nothing is read from another bot's database. To bring an old Arcane leaderboard across, set each number with `/level setxp`, which accepts total XP and reports the level it works out to.
+
 ### Timeouts
 | Command | Description |
 | --- | --- |
