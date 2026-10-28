@@ -1578,15 +1578,26 @@ test('env loader accepts .env, wispbyte.env and env', () => {
 });
 
 test('ticket channels are named after the member, safely', () => {
-  const { channelSlug, ticketLabel } = require(path.join(root, 'src', 'commands', 'ticket'));
+  const { channelSlug, ticketLabel, categoryKey } = require(path.join(
+    root,
+    'src',
+    'commands',
+    'ticket',
+  ));
   assert.equal(channelSlug('sarimvora2012'), 'sarimvora2012');
   assert.equal(channelSlug('Some.User'), 'some.user');
   assert.equal(channelSlug('weird name!!'), 'weird-name');
   assert.equal(channelSlug('--trailing--'), 'trailing');
   assert.equal(channelSlug(''), 'member');
   assert.equal(ticketLabel('giveaway'), 'giveaway-claim');
+  assert.equal(ticketLabel('application'), 'application');
+  assert.equal(ticketLabel('spawner-buy'), 'spawner-buy');
+  assert.equal(ticketLabel('spawner-sell'), 'spawner-sell');
   assert.equal(ticketLabel('ticket'), 'ticket');
   assert.equal(ticketLabel(undefined), 'ticket');
+  assert.equal(categoryKey('spawner-buy'), 'spawner');
+  assert.equal(categoryKey('spawner-sell'), 'spawner');
+  assert.equal(categoryKey('application'), 'application');
 });
 
 process.exit(failures === 0 ? 0 : 1);

@@ -238,9 +238,84 @@ async function usernameOf(client, guild, userId) {
   return fetched?.username ?? 'member';
 }
 
-/** Channel-name prefix per ticket type: giveaway claims say what they are. */
+/** Channel-name prefix per ticket type. */
+const TICKET_LABELS = {
+  application: 'application',
+  giveaway: 'giveaway-claim',
+  spawner: 'spawner',
+  'spawner-buy': 'spawner-buy',
+  'spawner-sell': 'spawner-sell',
+};
+
 function ticketLabel(type) {
-  return type === 'giveaway' ? 'giveaway-claim' : 'ticket';
+  return TICKET_LABELS[type] ?? 'ticket';
+}
+
+/** Category a ticket type is filed under, in plain words. */
+const TICKET_CATEGORIES = {
+  application: 'application tickets',
+  giveaway: 'giveaway claims',
+  spawner: 'spawner tickets',
+};
+
+/** Buying and selling share one category, so they share one saved id. */
+const CATEGORY_KEY = {
+  'spawner-buy': 'spawner',
+  'spawner-sell': 'spawner',
+};
+
+function categoryKey(type) {
+  return CATEGORY_KEY[type] ?? type;
+}
+
+/**
+ * Finds the category for this ticket type, creating it once if it is missing.
+ * The new id is remembered in settings so later tickets reuse the same category.
+ */
+async function resolveCategory({ client, guild, settings, store, type, categoryId }) {
+  const key = categoryKey(type);
+
+  for (const id of [categoryId, settings.ticketCategories?.[key], settings.ticketCategoryId]) {
+    if (!id) continue;
+    const found =
+      guild.channels.cache.get(id) ?? (await guild.channels.fetch(id).catch(() => null));
+    if (found?.type === ChannelType.GuildCategory) return found;
+  }
+
+  const label = TICKET_CATEGORIES[key];
+  if (!label) return null;
+
+  const staffRole = settings.staffRoleId
+    ? guild.roles.cache.get(settings.staffRoleId)
+    : null;
+  const permissionOverwrites = [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    {
+      id: client.user.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels],
+    },
+  ];
+  if (staffRole) {
+    permissionOverwrites.push({ id: staffRole.id, allow: [PermissionFlagsBits.ViewChannel] });
+  }
+
+  const created = await guild.channels
+    .create({
+      name: toSmallCaps(label),
+      type: ChannelType.GuildCategory,
+      permissionOverwrites,
+      reason: `Category for ${label} created automatically`,
+    })
+    .catch((err) => {
+      console.error(`[ticket] Could not create the ${label} category:`, err.message);
+      return null;
+    });
+
+  if (!created) return null;
+
+  settings.ticketCategories = { ...settings.ticketCategories, [key]: created.id };
+  store.save();
+  return created;
 }
 
 /**
@@ -261,15 +336,7 @@ async function createTicketChannel({
   reason = 'Ticket opened',
   type = 'ticket',
 }) {
-  const parentId = categoryId ?? settings.ticketCategoryId;
-  let category = parentId ? guild.channels.cache.get(parentId) : null;
-  if (category && category.type !== ChannelType.GuildCategory) {
-    category = null;
-    if (!categoryId) {
-      settings.ticketCategoryId = null;
-      store.save();
-    }
-  }
+  const category = await resolveCategory({ client, guild, settings, store, type, categoryId });
 
   const number = store.nextCounter(guild.id, 'ticket');
   const staffRole = settings.staffRoleId
@@ -826,6 +893,8 @@ module.exports = {
   createTicketChannel,
   channelSlug,
   ticketLabel,
+  categoryKey,
+  resolveCategory,
   canCloseTicket,
   deleteTicketChannel,
   sweepClosedTickets,

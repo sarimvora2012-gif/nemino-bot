@@ -778,21 +778,6 @@ async function openApplicationTicket(interaction, { store, applicationId }) {
     return;
   }
 
-  const category = await guild.channels
-    .fetch(APPLICATION_TICKET_CATEGORY_ID)
-    .catch(() => null);
-  if (!category || category.type !== ChannelType.GuildCategory) {
-    await interaction.editReply({
-      embeds: [
-        errorEmbed(
-          'The application ticket category could not be found. Check that the category still exists and that I can see it.',
-          'Ticket category missing',
-        ),
-      ],
-    });
-    return;
-  }
-
   let channel;
   let ticket;
   try {

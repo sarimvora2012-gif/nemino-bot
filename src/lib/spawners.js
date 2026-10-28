@@ -334,7 +334,7 @@ async function handleButton(interaction, { store }) {
       store,
       ownerId: interaction.user.id,
       categoryId: TICKET_CATEGORY_ID,
-      type: 'spawner',
+      type: `spawner-${mode}`,
       topic: `Spawner ${mode === 'buy' ? 'purchase' : 'sale'} · <@${interaction.user.id}> (${interaction.user.id})`,
       reason: `Spawner ${mode} ticket opened by ${interaction.user.tag}`,
     }));
