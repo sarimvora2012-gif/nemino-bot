@@ -43,10 +43,12 @@ Everything is stored per server in `data/data.json`, so settings, tickets, strik
 Replace `YOUR_CLIENT_ID` and open this URL:
 
 ```
-https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=1099780451410&scope=bot%20applications.commands
+https://discord.com/api/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=1099914669138&scope=bot%20applications.commands
 ```
 
-The permission number covers: Kick Members (`/kick`), Manage Roles, Manage Channels, View Channels, Send Messages, Manage Messages, Moderate Members (automod timeouts), Embed Links, Attach Files, Read Message History, Add Reactions, Use External Emojis.
+The permission number covers: Kick Members (`/kick`), Manage Roles, **Manage Nicknames** (the `Name (count)` vouch names), Manage Channels, View Channels, Send Messages, Manage Messages, Moderate Members (automod timeouts), Embed Links, Attach Files, Read Message History, Add Reactions, Use External Emojis.
+
+If the bot was invited before **Manage Nicknames** was added, you do not need a new invite: open **Server Settings → Roles → the bot's role** and switch **Manage Nicknames** on, then run `!vouchresync`.
 
 ### 3. Configure the project
 
@@ -81,6 +83,14 @@ Run these once in your server:
 ```text
 /config set staff_role:@Staff log_channel:#bot-logs ticket_category:#Tickets transcript_channel:#ticket-transcripts loa_role:@LOA
 ```
+
+Every channel setting also accepts a pasted link, which is handy when the picker will not show the channel:
+
+```text
+/config link setting:log_channel link:https://discord.com/channels/123456789012345678/223456789012345678
+```
+
+`<#channel>` mentions and plain channel IDs work too. Settings available this way: `log_channel`, `ticket_category`, `transcript_channel`, `application_review_channel`, `vouch_channel`, `staff_vouch_channel`. The link must point at a channel in this server, and a category setting refuses a normal channel (and the other way round).
 
 1. **Tickets** — in your #create-a-ticket channel:
    ```text
@@ -264,19 +274,22 @@ Set `YOUTUBE_HANDLE` in `.env` to watch a different channel. Nothing is posted w
 | `:vouch @user` | Everyone | Counts a vouch for the mentioned member |
 | `/vouch leaderboard` | Everyone | Top 10 most vouched members |
 | `!vouchadd @user 5` | Owner / co-owner | Adds vouches manually |
+| `!vouchresync` | Admin | Re-applies every saved count to nicknames (use after fixing permissions) |
 | `!vouchsetup` | Admin | Posts or refreshes the vouch panel |
 
 A vouch message is read from any channel whose name contains “vouch” (`✅ᴠᴏᴜᴄʜᴇꜱ` and `🏅ꜱᴛᴀꜰꜰ-ᴠᴏᴜᴄʜᴇꜱ` are detected automatically), or from the channels set with `/config set vouch_channel:#channel staff_vouch_channel:#channel`. The message must start with `:vouch` or `vouch` and mention the member — nothing else is needed.
 
 When a vouch is counted the bot:
 
-1. Adds one vouch and updates the member's nickname to `Name (count)` (skipped when the bot cannot rename them, e.g. the server owner).
+1. Adds one vouch and updates the member's nickname to `Name (count)`.
 2. Posts a small confirmation that deletes itself after 3 seconds.
 3. Deletes the previous panel and reposts it, so the how-to-vouch line is always at the bottom of the channel. Nothing is pinned.
 
+The nickname step needs the bot's role to have **Manage Nicknames** and to sit above the member's highest role. When Discord refuses, the 3-second confirmation says why — missing **Manage Nicknames**, a role above the bot's, or the server owner (Discord never lets a bot rename the owner). Counts are always saved even when the rename fails, so fixing the permission and running `!vouchresync` puts every existing count onto the right nickname.
+
 The panel is deliberately one plain message line — `Vouches must be in the format: vouch <@member>` — with no embed around it, so it reads exactly like the format other vouch bots use.
 
-Self-vouches and vouches for bots are refused. `!vouchadd` works for the server owner, anyone whose role name contains “owner” (e.g. Co-Owner), and any role set with `/config set vouch_admin_role:@role`; staff without one of those cannot add vouches. Manual additions are logged in the configured log channel.
+Self-vouches and vouches for bots are refused. `!vouchadd` works for the server owner, anyone whose role name contains “owner” (e.g. Co-Owner), and any role set with `/config set vouch_admin_role:@role`; staff without one of those cannot add vouches. The “owner” name match ignores the font, so restyled roles such as `👑 ᴄᴏ-ᴏᴡɴᴇʀ` still count. Manual additions are logged in the configured log channel.
 
 ### Timeouts
 | Command | Description |
@@ -327,6 +340,14 @@ Both run automatically — there is nothing to type.
 | --- | --- |
 | `!staffguide` | Staff only — posts the categorized staff command guide in the current channel |
 
+### Staff role font
+| Command | Description |
+| --- | --- |
+| `!stafffont` | Renames every role at or above the staff role into small caps (Manage Server) |
+| `!stafffont @role` | Restyles just that one role |
+
+Role names are converted with the same font as the channels, so `Staff` becomes `ꜱᴛᴀꜰꜰ` and `👑 Co-Owner` becomes `👑 ᴄᴏ-ᴏᴡɴᴇʀ`. Emoji, numbers and punctuation are kept, and roles already in the font are left alone (running it twice changes nothing). @everyone and bot/integration roles are never touched. A role at or above the bot's own role cannot be renamed — the reply names each one and says to move the bot role higher, then run the command again.
+
 The guide covers only what staff need day to day: tickets, applications, giveaways, `!strike list`, LOA review, suggestions, general commands and the golden rules. Admin-only commands and systems — `/config`, application question management, ticket-panel setup, all `/activity` commands, `/promote`, `/demote`, `!strike` issuing and removal, `/protect`, `/kick`, moderation and AutoMod — are excluded. When an application is accepted, the acceptance DM includes quick links to the staff rules and staff workflow channels.
 
 ### General
@@ -335,10 +356,13 @@ The guide covers only what staff need day to day: tickets, applications, giveawa
 | `/help` | Command overview |
 | `/ping` | Latency check |
 | `/config view` / `/config set ...` | View or change server settings (Manage Server only) |
+| `/config link setting:<name> link:<url>` | Set a channel setting by pasting a channel link |
 | `/vouch leaderboard` | Top 10 most vouched members |
 | `!to @user 10m [reason]` | Timeout a member (Timeout Members) |
 | `!vouchadd @user 5` | Add vouches (owner / co-owner) |
+| `!vouchresync` | Re-apply vouch counts to nicknames (admin) |
 | `!vouchsetup` | Post the vouch panel (admin) |
+| `!stafffont [@role]` | Rename the staff roles into small caps (Manage Server) |
 
 ## Project layout
 
@@ -394,7 +418,9 @@ All embeds are created through `embed()` in `src/lib/helpers.js`, which automati
 | Bot can't change roles | Bot role must be above the role being assigned or removed (Server Settings → Roles) |
 | Promotion embed did not post | Check <#1528259332876275742> still exists and the bot can **View Channel** and **Send Messages** there |
 | `:vouch @user` does nothing | The channel name must contain “vouch”, or set it with `/config set vouch_channel:#channel`; the message must mention a member |
-| Nicknames are not updating | The bot needs **Manage Nicknames** and its role must be above the member; server owners cannot be renamed |
+| Nicknames are not updating | The bot's role needs **Manage Nicknames** and must be above the member's highest role; server owners cannot be renamed. Fix the permission, then run `!vouchresync` |
+| `/config link` says no channel found | The link must belong to this server and the bot must be able to see that channel |
+| `!stafffont` leaves top roles alone | Those roles sit at or above the bot's own role; drag the bot role above them and run it again |
 | The vouch panel is not at the bottom | It is reposted after every vouch. If the channel goes quiet after a refresh it stays put until the next vouch; run `!vouchsetup` to move it down manually |
 | `!to` is refused | You need **Timeout Members**, the member must be below your highest role, and the bot role must be above theirs |
 | Old messages still look like classic embeds | Messages sent before the Components V2 update cannot be converted in place; repost the panel or message to get the new V2 layout |

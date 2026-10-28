@@ -149,8 +149,13 @@ function announceRole(guild) {
   }
 
   for (const name of PING_ROLE_NAMES) {
+    const wanted = toSmallCaps(name);
     const role = guild?.roles?.cache?.find(
-      (candidate) => candidate.id !== guild.id && !candidate.managed && candidate.name.toLowerCase() === name,
+      (candidate) =>
+        candidate.id !== guild.id &&
+        !candidate.managed &&
+        // Font-insensitive, so a staff role restyled by !stafffont still matches.
+        toSmallCaps(candidate.name).toLowerCase() === wanted,
     );
     if (role) return role;
   }

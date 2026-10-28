@@ -1143,6 +1143,11 @@ test('only owner and co-owner roles can add vouches', () => {
     true,
   );
   assert.equal(
+    vouch.canManageVouches(member([{ id: '9', name: '👑 ᴄᴏ-ᴏᴡɴᴇʀ' }]), { ownerId: '1' }, {}),
+    true,
+    '!stafffont must not break owner detection',
+  );
+  assert.equal(
     vouch.canManageVouches(member([{ id: '9', name: 'Moderator' }]), { ownerId: '1' }, {}),
     false,
   );
@@ -1157,6 +1162,85 @@ test('leaderboard orders the most vouched first', () => {
   assert.deepEqual(entries.map((entry) => entry.id), ['b', 'a', 'd']);
   assert.equal(vouch.leaderboardEntries({ vouches: { a: 1 } }, 5).length, 1);
 });
+test('channel links are read from pasted URLs, mentions and bare IDs', () => {
+  const { parseChannelLink } = require('../src/lib/links');
+  const channel = '223456789012345678';
+  assert.equal(parseChannelLink(`https://discord.com/channels/123456789012345678/${channel}`), channel);
+  assert.equal(
+    parseChannelLink(`https://canary.discord.com/channels/123456789012345678/${channel}?foo=1`),
+    channel,
+    'canary links and query strings work',
+  );
+  assert.equal(
+    parseChannelLink(`https://discordapp.com/channels/123456789012345678/${channel}`),
+    channel,
+    'old discordapp links work',
+  );
+  assert.equal(parseChannelLink(`<#${channel}>`), channel, 'channel mentions work');
+  assert.equal(parseChannelLink(channel), channel, 'bare IDs work');
+  assert.equal(parseChannelLink(` ${channel} `), channel, 'whitespace is trimmed');
+  assert.equal(parseChannelLink('https://discord.com/channels/123456789012345678'), null, 'no channel in the link');
+  assert.equal(parseChannelLink('https://example.com/channels/1/2'), null, 'wrong site');
+  assert.equal(parseChannelLink('log channel please'), null);
+  assert.equal(parseChannelLink(''), null);
+  assert.equal(parseChannelLink(undefined), null);
+});
+
+test('nickname updates explain why Discord refuses them', () => {
+  const { PermissionFlagsBits } = require('discord.js');
+  const build = ({ has = true, mine = 10, theirs = 1, ownerId = 'owner' } = {}) => {
+    const guild = {
+      ownerId,
+      members: {
+        me: { permissions: { has: (flag) => has && flag === PermissionFlagsBits.ManageNicknames }, roles: { highest: { position: mine } } },
+      },
+    };
+    return { id: 'user', guild, setNickname() {}, roles: { highest: { position: theirs } } };
+  };
+
+  assert.equal(vouch.nicknameBlocker(build()), null, 'a normal member can be renamed');
+  assert.match(vouch.nicknameBlocker(build({ has: false })), /Manage Nicknames/);
+  assert.match(
+    vouch.nicknameBlocker(build({ ownerId: 'user' })),
+    /server owner/,
+    'the owner can never be renamed',
+  );
+  assert.match(
+    vouch.nicknameBlocker(build({ mine: 5, theirs: 5 })),
+    /above mine/,
+    'a role at the bot level blocks the rename',
+  );
+});
+
+test('staff roles are planned in small caps and nothing else is touched', () => {
+  const rolefont = require('../src/lib/rolefont');
+  const { toSmallCaps } = require('../src/lib/smallcaps');
+  const roles = [
+    { id: 'everyone', name: '@everyone', position: 0, managed: false },
+    { id: 'member', name: 'Member', position: 1, managed: false },
+    { id: 'staff', name: 'Staff', position: 5, managed: false },
+    { id: 'mod', name: 'Moderator', position: 7, managed: false },
+    { id: 'botrole', name: 'SomeBot', position: 9, managed: true },
+    { id: 'done', name: toSmallCaps('Admin'), position: 8, managed: false },
+  ];
+
+  const plan = rolefont.planRenames(roles, { everyoneId: 'everyone', botPosition: 20, staffPosition: 5 });
+  assert.deepEqual(plan.map((entry) => entry.id), ['mod', 'staff'], 'highest first, member/@everyone/managed skipped');
+  assert.equal(plan[0].to, toSmallCaps('Moderator'));
+  assert.ok(plan.every((entry) => entry.blocked === null));
+  assert.equal(
+    rolefont.planRenames(roles, { everyoneId: 'everyone' }).some((entry) => entry.id === 'member'),
+    true,
+    'without a staff floor every role is fair game',
+  );
+
+  const blocked = rolefont.planRenames(
+    [{ id: 'owner', name: 'Owner', position: 20, managed: false }],
+    { everyoneId: 'everyone', botPosition: 10 },
+  );
+  assert.match(blocked[0].blocked, /move my bot role above it/);
+});
+
 test('timeout times accept minutes, hours, days and weeks', () => {
   assert.equal(timeout.parseTimeoutTime('10'), 600_000);
   assert.equal(timeout.parseTimeoutTime('10m'), 600_000);
@@ -1472,9 +1556,28 @@ const mediaGuild = {
   },
 };
 
-test('uploads ping the Nemino role', () => {
+test('uploads ping the Nemino role, even after !stafffont', () => {
   const role = media.announceRole(mediaGuild);
   assert.equal(role.id, 'role-nemino');
+
+  const restyled = {
+    ...mediaGuild,
+    roles: {
+      cache: {
+        ...mediaGuild.roles.cache,
+        find: (predicate) =>
+          [
+            { id: 'g-1', name: '@everyone', managed: false },
+            { id: 'role-nemino', name: 'ɴᴇᴍɪɴᴏ', managed: false },
+          ].find(predicate) ?? null,
+      },
+    },
+  };
+  assert.equal(
+    media.announceRole(restyled)?.id,
+    'role-nemino',
+    'small-capped role names still match',
+  );
 
   const payload = media.uploadCard({ guild: mediaGuild, url: 'https://youtu.be/dQw4w9WgXcQ' });
   assert.equal(payload.components.length, 1, 'one wide container');

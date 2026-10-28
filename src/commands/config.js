@@ -7,6 +7,55 @@ const {
   MessageFlags,
 } = require('discord.js');
 const { successEmbed, errorEmbed, COLORS, embed } = require('../lib/helpers');
+const { parseChannelLink } = require('../lib/links');
+
+const TEXT_CHANNELS = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
+
+/** Channel settings that `/config link` can fill from a pasted link. */
+const LINK_SETTINGS = {
+  log_channel: {
+    label: 'Log channel',
+    types: TEXT_CHANNELS,
+    apply: (settings, channel) => {
+      settings.logChannelId = channel.id;
+    },
+  },
+  ticket_category: {
+    label: 'Ticket category',
+    types: [ChannelType.GuildCategory],
+    apply: (settings, channel) => {
+      settings.ticketCategoryId = channel.id;
+    },
+  },
+  transcript_channel: {
+    label: 'Transcript channel',
+    types: TEXT_CHANNELS,
+    apply: (settings, channel) => {
+      settings.transcriptChannelId = channel.id;
+    },
+  },
+  application_review_channel: {
+    label: 'Application review channel',
+    types: TEXT_CHANNELS,
+    apply: (settings, channel) => {
+      settings.applications.reviewChannelId = channel.id;
+    },
+  },
+  vouch_channel: {
+    label: 'Vouch channel',
+    types: TEXT_CHANNELS,
+    apply: (settings, channel) => {
+      settings.vouchChannelId = channel.id;
+    },
+  },
+  staff_vouch_channel: {
+    label: 'Staff vouch channel',
+    types: TEXT_CHANNELS,
+    apply: (settings, channel) => {
+      settings.staffVouchChannelId = channel.id;
+    },
+  },
+};
 
 const data = [
   new SlashCommandBuilder()
@@ -75,8 +124,99 @@ const data = [
             .setName('automod_alert_role')
             .setDescription('Role pinged when AutoMod catches a suspicious link (defaults to the staff role)'),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('link')
+        .setDescription('Set a channel setting by pasting a channel link')
+        .addStringOption((opt) =>
+          opt
+            .setName('setting')
+            .setDescription('Which channel setting to change')
+            .setRequired(true)
+            .addChoices(
+              ...Object.entries(LINK_SETTINGS).map(([value, meta]) => ({
+                name: meta.label,
+                value,
+              })),
+            ),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName('link')
+            .setDescription('Channel link, <#channel> mention or channel ID')
+            .setRequired(true)
+            .setMaxLength(200),
+        ),
     ),
 ];
+
+/** `/config link` — resolves a pasted link to a channel in this server. */
+async function handleLink(interaction, store, settings) {
+  const key = interaction.options.getString('setting', true);
+  const input = interaction.options.getString('link', true);
+  const meta = LINK_SETTINGS[key];
+
+  if (!meta) {
+    await interaction.reply({
+      embeds: [errorEmbed(`\`${key}\` is not a channel setting.`)],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const channelId = parseChannelLink(input);
+  if (!channelId) {
+    await interaction.reply({
+      embeds: [
+        errorEmbed(
+          'That is not a channel link. Right-click the channel, choose **Copy Channel Link**, and paste that — `<#channel>` and a plain channel ID work too.',
+          'No channel in that link',
+        ),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const channel =
+    interaction.guild.channels.cache.get(channelId) ??
+    (await interaction.guild.channels.fetch(channelId).catch(() => null));
+  if (!channel) {
+    await interaction.reply({
+      embeds: [
+        errorEmbed(
+          `No channel with the ID \`${channelId}\` is in this server, or I cannot see it.`,
+          'Channel not found',
+        ),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (!meta.types.includes(channel.type)) {
+    const wanted = meta.types.includes(ChannelType.GuildCategory)
+      ? 'a **category**'
+      : 'a **text channel**';
+    await interaction.reply({
+      embeds: [
+        errorEmbed(
+          `${channel.name ? `**#${channel.name}**` : 'That channel'} is not ${wanted}, which is what **${meta.label}** needs.`,
+          'Wrong channel type',
+        ),
+      ],
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  meta.apply(settings, channel);
+  store.save();
+  await interaction.reply({
+    embeds: [successEmbed('Setting updated', `**${meta.label}** → ${channel}`)],
+  });
+}
 
 async function execute(interaction, { store }) {
   const guild = interaction.guild;
@@ -90,7 +230,14 @@ async function execute(interaction, { store }) {
     return;
   }
 
-  if (interaction.options.getSubcommand() === 'view') {
+  const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === 'link') {
+    await handleLink(interaction, store, settings);
+    return;
+  }
+
+  if (subcommand === 'view') {
     const list = (value) => (value ? `<#${value}>` : '—');
     const role = (value) => (value ? `<@&${value}>` : '—');
     const view = embed({

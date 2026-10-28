@@ -23,6 +23,7 @@ const automod = require('./lib/automod');
 const honeypot = require('./lib/honeypot');
 const loa = require('./lib/loa');
 const membercount = require('./lib/membercount');
+const rolefont = require('./lib/rolefont');
 const spawnerBoard = require('./lib/spawners');
 const staffguide = require('./lib/staffguide');
 const steal = require('./lib/steal');
@@ -164,6 +165,9 @@ client.on(Events.MessageCreate, (message) => {
   vouch
     .handleMessage(message, context)
     .catch((err) => console.error('[vouch] Message handler failed:', err));
+  rolefont
+    .handleMessage(message, context)
+    .catch((err) => console.error('[rolefont] Message handler failed:', err));
   automod
     .handleMessage(message, context)
     .catch((err) => console.error('[automod] Message handler failed:', err));

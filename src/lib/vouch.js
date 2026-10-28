@@ -35,13 +35,21 @@ function parseVouch(message) {
   return message.mentions?.members?.first() ?? null;
 }
 
-/** Owner, configured vouch admin role, or any role with "owner" in its name. */
+/**
+ * Owner, configured vouch admin role, or any role with "owner" in its name.
+ * The name check is font-insensitive, so a small-capped `👑 ᴄᴏ-ᴏᴡɴᴇʀ` still
+ * counts after `!stafffont` has restyled it.
+ */
+function roleNameSaysOwner(name) {
+  return /owner/i.test(name) || toSmallCaps(name).includes(toSmallCaps('owner'));
+}
+
 function canManageVouches(member, guild, settings) {
   if (!member) return false;
   if (guild.ownerId === member.id) return true;
   if (settings.vouchAdminRoleId && member.roles?.cache?.has(settings.vouchAdminRoleId)) return true;
   return Boolean(
-    member.roles?.cache?.some((role) => /owner/i.test(role.name) && role.id !== guild.id),
+    member.roles?.cache?.some((role) => roleNameSaysOwner(role.name) && role.id !== guild.id),
   );
 }
 
@@ -54,13 +62,77 @@ function withCount(name, count) {
   return `${trimmed || 'Member'}${suffix}`;
 }
 
-/** Shows the count next to their name, e.g. "Slash (12)". */
-async function updateNickname(member, count) {
-  if (!member?.setNickname) return false;
+/**
+ * Why the bot cannot rename this member, or null when it can.
+ * Discord refuses every one of these silently, which is why a missing
+ * permission used to look like the counter was simply broken.
+ */
+function nicknameBlocker(member, guild = member?.guild) {
+  if (!member?.setNickname) return 'this member cannot be renamed.';
+  const me = guild?.members?.me;
+  if (!me) return 'I am not in this server.';
+  if (!me.permissions?.has(PermissionFlagsBits.ManageNicknames)) {
+    return 'I am missing the **Manage Nicknames** permission — give it to my role, no re-invite needed.';
+  }
+  if (guild.ownerId && member.id === guild.ownerId) {
+    return 'Discord never lets a bot rename the server owner.';
+  }
+  const mine = me.roles?.highest?.position;
+  const theirs = member.roles?.highest?.position;
+  if (Number.isFinite(mine) && Number.isFinite(theirs) && theirs >= mine) {
+    return 'their highest role is above mine — move my bot role higher.';
+  }
+  return null;
+}
+
+/**
+ * Shows the count next to their name, e.g. "Slash (12)".
+ * Returns `{ ok, changed, reason }` so callers can tell "nothing to do" apart
+ * from "Discord refused".
+ */
+async function updateNickname(member, count, guild = member?.guild) {
+  if (!member?.setNickname) return { ok: false, changed: false, reason: 'this member cannot be renamed.' };
   const name = withCount(member.displayName, count);
-  if (member.displayName === name) return false;
-  const updated = await member.setNickname(name, `Vouch count: ${count}`).catch(() => null);
-  return Boolean(updated);
+  if (member.displayName === name) return { ok: true, changed: false, reason: null };
+
+  const blocked = nicknameBlocker(member, guild);
+  if (blocked) {
+    console.warn(`[vouch] Could not rename ${member.user?.tag ?? member.id}: ${blocked}`);
+    return { ok: false, changed: false, reason: blocked };
+  }
+
+  const updated = await member.setNickname(name, `Vouch count: ${count}`).catch((err) => err);
+  if (updated instanceof Error) {
+    console.warn(`[vouch] Discord refused the rename of ${member.user?.tag ?? member.id}: ${updated.message}`);
+    return { ok: false, changed: false, reason: updated.message };
+  }
+  return { ok: true, changed: true, reason: null };
+}
+
+/** Re-applies every saved count, for members vouched before the bot could rename. */
+async function resyncNicknames(guild, store) {
+  const settings = store.guild(guild.id);
+  const result = { total: 0, updated: 0, already: 0, missing: 0, failed: [] };
+
+  for (const [userId, raw] of Object.entries(settings.vouches ?? {})) {
+    const count = Number(raw) || 0;
+    if (count <= 0) continue;
+    result.total += 1;
+
+    const member =
+      guild.members.cache.get(userId) ?? (await guild.members.fetch(userId).catch(() => null));
+    if (!member) {
+      result.missing += 1;
+      continue;
+    }
+
+    const applied = await updateNickname(member, count, guild);
+    if (applied.ok && applied.changed) result.updated += 1;
+    else if (applied.ok) result.already += 1;
+    else result.failed.push({ member, count, reason: applied.reason });
+  }
+
+  return result;
 }
 
 /** One plain instruction line, matching how other vouch bots word it. */
@@ -132,10 +204,10 @@ async function registerVouch({
   settings.vouches[target.id] = count;
   store.save();
 
-  await updateNickname(target, count);
+  const nickname = await updateNickname(target, count, guild);
   if (refresh && channel) await refreshPanel(channel, store);
 
-  return { ok: true, count };
+  return { ok: true, count, nickname };
 }
 
 function leaderboardEntries(settings, limit = 10) {
@@ -262,7 +334,13 @@ async function handleMessage(message, { store }) {
       embeds: [
         successEmbed(
           'Vouches added',
-          `Added **${amount}** vouch${amount === 1 ? '' : 'es'} to ${target}.\nThey now have **${result.count}** vouch${result.count === 1 ? '' : 'es'}.`,
+          [
+            `Added **${amount}** vouch${amount === 1 ? '' : 'es'} to ${target}.`,
+            `They now have **${result.count}** vouch${result.count === 1 ? '' : 'es'}.`,
+            ...(result.nickname && !result.nickname.ok
+              ? [`⚠️ Nickname not updated — ${result.nickname.reason}`]
+              : []),
+          ].join('\n'),
         ),
       ],
       allowedMentions: { parse: [] },
@@ -280,6 +358,47 @@ async function handleMessage(message, { store }) {
         color: COLORS.warning,
       }),
     ]);
+    return;
+  }
+
+  // !vouchresync — re-apply the count to everyone who already has vouches.
+  if (lower === '!vouchresync') {
+    if (!message.member?.permissions?.has(PermissionFlagsBits.ManageGuild)) {
+      await message.reply({
+        embeds: [errorEmbed('You need **Manage Server** to resync vouch nicknames.', 'Missing permissions')],
+        allowedMentions: { parse: [] },
+      });
+      return;
+    }
+
+    const synced = await resyncNicknames(guild, store);
+    const lines = [
+      `**Counted members:** ${synced.total}`,
+      `**Nicknames updated:** ${synced.updated}`,
+      `**Already correct:** ${synced.already}`,
+    ];
+    if (synced.missing) lines.push(`**No longer in the server:** ${synced.missing}`);
+
+    if (synced.failed.length) {
+      lines.push('', `⚠️ **${synced.failed.length} could not be renamed**`);
+      for (const entry of synced.failed.slice(0, 8)) {
+        lines.push(`> <@${entry.member.id}> — ${entry.reason}`);
+      }
+      if (synced.failed.length > 8) lines.push(`> …and ${synced.failed.length - 8} more`);
+    }
+
+    await message
+      .reply({
+        embeds: [
+          embed({
+            title: '🔄 Vouch nicknames resynced',
+            description: lines.join('\n'),
+            color: synced.failed.length ? COLORS.warning : COLORS.success,
+          }),
+        ],
+        allowedMentions: { parse: [] },
+      })
+      .catch(() => {});
     return;
   }
 
@@ -312,9 +431,15 @@ async function handleMessage(message, { store }) {
 
   await sendConfirmation(
     message.channel,
-    `✅ **Vouch counted for ${target}** — they now have **${result.count}** vouch${
-      result.count === 1 ? '' : 'es'
-    }.`,
+    [
+      `✅ **Vouch counted for ${target}** — they now have **${result.count}** vouch${
+        result.count === 1 ? '' : 'es'
+      }.`,
+      ...(result.nickname && !result.nickname.ok
+        ? [`⚠️ Nickname not updated — ${result.nickname.reason}`]
+        : []),
+    ].join('\n'),
+    result.nickname && !result.nickname.ok ? COLORS.warning : COLORS.success,
   );
 }
 
@@ -322,13 +447,16 @@ module.exports = {
   CONFIRM_MS,
   canManageVouches,
   handleMessage,
+  roleNameSaysOwner,
   isVouchChannel,
   leaderboardCard,
   leaderboardEntries,
+  nicknameBlocker,
   panelCard,
   parseVouch,
   refreshPanel,
   registerVouch,
+  resyncNicknames,
   updateNickname,
   withCount,
 };
