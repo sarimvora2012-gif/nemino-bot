@@ -100,7 +100,7 @@ async function execute(interaction, { client }) {
         value: [
           '`/level rank [user]` — level, rank, XP and progress',
           '`/level top` — the 10 members with the most XP',
-          '`/level settings` — XP per message, cooldown, announce channel (admin)',
+          '`/level settings` — XP per message, cooldown, announce channel (owner and co-owner only)',
           '`/level setxp user:@member xp:<n>` — set total XP (owner and co-owner only)',
         ].join('\n'),
       },

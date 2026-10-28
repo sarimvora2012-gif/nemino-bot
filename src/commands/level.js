@@ -1,11 +1,6 @@
 'use strict';
 
-const {
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-  ChannelType,
-  MessageFlags,
-} = require('discord.js');
+const { SlashCommandBuilder, ChannelType, MessageFlags } = require('discord.js');
 const { embed, successEmbed, errorEmbed, COLORS } = require('../lib/helpers');
 const { fontKey } = require('../lib/smallcaps');
 const levels = require('../lib/levels');
@@ -41,7 +36,7 @@ const data = [
     .addSubcommand((sub) =>
       sub
         .setName('settings')
-        .setDescription('View or change how XP is earned (Manage Server)')
+        .setDescription('View or change how XP is earned (owner and co-owner only)')
         .addBooleanOption((opt) => opt.setName('enabled').setDescription('Turn XP earning on or off'))
         .addBooleanOption((opt) =>
           opt.setName('announce').setDescription('Announce level-ups in chat'),
@@ -117,9 +112,14 @@ function settingsCard(guild, settings) {
 }
 
 async function handleSettings(interaction, store, settings) {
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+  if (!canSetXp(interaction.member, interaction.guild)) {
     await interaction.reply({
-      embeds: [errorEmbed('You need **Manage Server** to change level settings.', 'Missing permissions')],
+      embeds: [
+        errorEmbed(
+          'Only the **owner** and **co-owner** can change level settings.',
+          'Missing permissions',
+        ),
+      ],
       flags: MessageFlags.Ephemeral,
     });
     return;

@@ -306,7 +306,7 @@ Self-vouches and vouches for bots are refused. `!vouchadd` works for the server 
 | --- | --- |
 | `/level rank [user]` | A member's level, rank, XP and progress bar |
 | `/level top` | The 10 members with the most XP |
-| `/level settings [enabled] [announce] [announce_channel] [xp_min] [xp_max] [cooldown]` | View or change XP earning (Manage Server) |
+| `/level settings [enabled] [announce] [announce_channel] [xp_min] [xp_max] [cooldown]` | View or change XP earning (owner and co-owner only) |
 | `/level setxp user:@member xp:<n>` | Set a member's total XP — owner and co-owner only |
 
 Every message earns **15–25 XP** (random per message) with a **20-second cooldown**, so chatting normally levels someone while spam cannot. Bots, DMs and non-text channels are ignored. The curve is `5n² + 50n + 100` XP per level — 100 XP to level 1, 155 to level 2, 220 to level 3 — so the first levels come fast and later ones stretch.

@@ -1578,7 +1578,43 @@ test('the leaderboard orders by XP and rank cards show progress', () => {
   assert.ok(!top.includes('<@c>'), 'members without XP are hidden');
 });
 
-test('only the owner and co-owner can set XP', () => {
+test('only the owner and co-owner can set XP', async () => {
+  const { execute } = require('../src/commands/level');
+
+  // Both subcommands are gated, so an admin without a co-owner role gets
+  // a refusal and no write, for settings as well as setxp.
+  const replies = [];
+  const settingsStore = {
+    guild: () => ({ levels: { enabled: true } }),
+    save: () => assert.fail('nothing may be saved'),
+  };
+  const admin = {
+    id: 'admin',
+    permissions: 8n,
+    roles: { cache: { has: () => false, some: () => false } },
+  };
+  await execute(
+    {
+      guild: { id: 'g', ownerId: 'nemino', name: 'Nemino Nation' },
+      member: admin,
+      options: {
+        getSubcommand: () => 'settings',
+        getBoolean: () => true,
+        getChannel: () => null,
+        getInteger: () => 10,
+      },
+      reply: async (payload) => replies.push(payload),
+    },
+    { store: settingsStore },
+  );
+
+  assert.equal(replies.length, 1, 'the admin is refused');
+  assert.match(JSON.stringify(replies[0]), /co-owner/, 'the refusal explains who can');
+
+  runXpChecks();
+});
+
+function runXpChecks() {
   const { canSetXp } = require('../src/commands/level');
   const { toSmallCaps } = require('../src/lib/smallcaps');
   const guild = { id: 'g', ownerId: 'nemino' };
@@ -1608,7 +1644,7 @@ test('only the owner and co-owner can set XP', () => {
   assert.equal(canSetXp(member('mod', [{ id: 'm', name: 'Moderator' }]), guild), false);
   assert.equal(canSetXp(member('helper'), { id: 'g', ownerId: 'nemino' }), false, 'no roles means no access');
   assert.equal(canSetXp(null, guild), false, 'no member is refused');
-});
+}
 
 test('slash commands only re-register when they actually changed', () => {
   const { canonical, diffCommands } = require('../src/lib/commandsync');
