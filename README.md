@@ -330,7 +330,7 @@ Times accept `10m`, `1h`, `2d` or `1w`; a bare number means minutes. The minimum
 | --- | --- |
 | `!purge <amount>` | Deletes the last `<amount>` messages in the channel |
 
-Requires **Manage Messages**. Staff are capped at **50** messages per command; the owner (Nemino) and co-owner roles are not, up to Discord's own ceiling of **1000** per purge. Messages are fetched newest-first in pages of 100 and deleted in batches of 100, so a purge can span several API calls instead of stopping at Discord's per-request limit. Anything older than 14 days is skipped — Discord refuses to bulk-delete it — and the confirmation reports how many were removed and how many were kept. The command message itself is removed, and the confirmation disappears after 5 seconds so it does not clutter the channel.
+Requires **Manage Messages**. Staff are capped at **50** messages per command; the owner (Nemino) and co-owner roles are not, up to Discord's own ceiling of **1000** per purge. Messages are fetched newest-first in pages of 100 and deleted in batches of 100, so a purge can span several API calls instead of stopping at Discord's per-request limit. Discord refuses to *bulk*-delete messages older than 14 days, so those are deleted one at a time instead — a purge removes everything it was asked for, however old, and older messages simply take a little longer. The command message itself is removed, and the confirmation disappears after 5 seconds so it does not clutter the channel.
 
 ### AutoMod
 | Protection | What happens |

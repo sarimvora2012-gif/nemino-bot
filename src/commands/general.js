@@ -158,7 +158,7 @@ async function execute(interaction, { client }) {
           '`!purge 25` — delete the last 25 messages',
           'Staff can remove up to **50** per command',
           'Owner and co-owner can purge up to **1000**',
-          'Messages older than 14 days are kept — Discord does not allow those',
+          'Messages older than 14 days are removed one by one, so they take a little longer',
         ].join('\n'),
       },
       {

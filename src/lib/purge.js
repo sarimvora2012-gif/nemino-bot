@@ -10,6 +10,7 @@ const OWNER_CAP = 1000; // Discord's own ceiling for one purge
 const BATCH = 100; // Discord accepts at most 100 ids per bulk delete
 const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
 const CONFIRM_MS = 5000;
+const DELETE_CONCURRENCY = 5; // for messages too old for a bulk delete
 
 /** Reads the amount from `!purge 100`. Whole numbers only. */
 function parseAmount(input) {
@@ -22,6 +23,27 @@ function parseAmount(input) {
 /** The most this member may remove in one command. */
 function capFor(member, guild) {
   return isOwnerOrCoOwner(member, guild) ? OWNER_CAP : STAFF_CAP;
+}
+
+/**
+ * Deletes messages one at a time, a few in flight at once. Discord only refuses
+ * *bulk* deletes for messages older than 14 days; single deletes always work,
+ * so nothing is ever left behind.
+ */
+async function deleteIndividually(messages) {
+  let removed = 0;
+  for (const chunk of chunksOf(messages, DELETE_CONCURRENCY)) {
+    const results = await Promise.all(
+      chunk.map((entry) =>
+        entry
+          .delete()
+          .then(() => true)
+          .catch(() => false),
+      ),
+    );
+    removed += results.filter(Boolean).length;
+  }
+  return removed;
 }
 
 /**
@@ -103,9 +125,11 @@ async function handleMessage(message) {
   const history = (await collect(channel, amount + 1))
     .filter((entry) => entry.id !== message.id)
     .slice(0, amount);
+  // Bulk delete handles the 14-day window in batches of 100; anything older
+  // goes one by one so a purge never leaves old messages behind.
   const cutoff = Date.now() - TWO_WEEKS;
   const fresh = history.filter((entry) => entry.createdTimestamp > cutoff);
-  const stale = history.length - fresh.length;
+  const stale = history.filter((entry) => entry.createdTimestamp <= cutoff);
 
   let deleted = 0;
   for (const chunk of chunksOf(fresh, BATCH)) {
@@ -113,15 +137,20 @@ async function handleMessage(message) {
       console.error('[purge] Bulk delete failed:', err.message);
       return null;
     });
-    if (!removed) break;
+    if (!removed) {
+      // A failed bulk call still leaves the messages; delete those too.
+      deleted += await deleteIndividually(chunk);
+      continue;
+    }
     deleted += removed.size ?? chunk.length;
   }
+  deleted += await deleteIndividually(stale);
 
   await message.delete().catch(() => {});
 
   const lines = [`**Deleted:** ${deleted}`];
-  if (stale) lines.push(`**Skipped:** ${stale} older than 14 days (Discord keeps those)`);
-  if (deleted < amount && !stale) lines.push('**Note:** the channel ran out of messages');
+  if (stale.length) lines.push(`**Older than 14 days:** ${stale.length} (removed one by one)`);
+  if (deleted < amount) lines.push('**Note:** the channel ran out of messages');
 
   const confirmation = await channel
     .send({
@@ -142,6 +171,7 @@ module.exports = {
   capFor,
   chunksOf,
   collect,
+  deleteIndividually,
   handleMessage,
   parseAmount,
 };

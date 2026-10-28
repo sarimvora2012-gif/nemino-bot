@@ -1677,14 +1677,19 @@ test('!purge deletes in Discord-sized batches and refuses oversized staff purges
   const guild = { id: 'g', ownerId: 'nemino' };
   const now = Date.now();
 
-  const channelWith = (count) => {
+  const channelWith = (count, oldIndices = []) => {
+    const individually = [];
     const messages = Array.from({ length: count }, (_, index) => ({
       id: String(9000 - index),
-      createdTimestamp: now - index * 1000,
+      createdTimestamp: oldIndices.includes(index) ? now - 15 * 86_400_000 : now - index * 1000,
+      delete: async () => {
+        individually.push(String(9000 - index));
+      },
     }));
     const batches = [];
     return {
       batches,
+      individually,
       isTextBased: () => true,
       messages: {
         fetch: async ({ limit, before }) => {
@@ -1736,6 +1741,17 @@ test('!purge deletes in Discord-sized batches and refuses oversized staff purges
     channel.batches.map((batch) => batch.length),
     [100, 50],
     'Discord only takes 100 ids per call, so the purge is split',
+  );
+  assert.equal(channel.individually.length, 0);
+
+  // Messages past Discord's 14-day bulk window are deleted one by one, never skipped.
+  const withOld = channelWith(60, [48, 49]);
+  await run({ id: 'nemino', amount: 50, channel: withOld });
+  assert.equal(withOld.individually.length, 2, 'old messages are still removed');
+  assert.equal(
+    withOld.batches.reduce((total, batch) => total + batch.length, 0) + withOld.individually.length,
+    50,
+    'every requested message is deleted, however old',
   );
 });
 
