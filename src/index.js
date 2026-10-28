@@ -104,7 +104,7 @@ const client = new Client({
 const context = { client, store, commands };
 
 client.once(Events.ClientReady, (readyClient) => {
-  readyClient.user.setActivity('tickets & applications', { type: ActivityType.Watching });
+  readyClient.user.setActivity('made by seraphum', { type: ActivityType.Watching });
   console.log(`✅ Logged in as ${readyClient.user.tag}`);
   console.log(`   Serving ${readyClient.guilds.cache.size} server(s) · ${commands.size} commands loaded`);
 
