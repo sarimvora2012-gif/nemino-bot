@@ -23,7 +23,6 @@ const {
   GatewayIntentBits,
   Events,
   MessageFlags,
-  ActivityType,
   Partials,
 } = require('discord.js');
 const { Store } = require('./store');
@@ -36,6 +35,7 @@ const purge = require('./lib/purge');
 const levels = require('./lib/levels');
 const loa = require('./lib/loa');
 const membercount = require('./lib/membercount');
+const presence = require('./lib/presence');
 const rolefont = require('./lib/rolefont');
 const roleicons = require('./lib/roleicons');
 const roleping = require('./lib/roleping');
@@ -104,7 +104,7 @@ const client = new Client({
 const context = { client, store, commands };
 
 client.once(Events.ClientReady, (readyClient) => {
-  readyClient.user.setActivity('made by seraphum', { type: ActivityType.Watching });
+  presence.start(readyClient);
   console.log(`✅ Logged in as ${readyClient.user.tag}`);
   console.log(`   Serving ${readyClient.guilds.cache.size} server(s) · ${commands.size} commands loaded`);
 
@@ -293,6 +293,7 @@ async function shutdown(signal) {
   activity.stopScheduler();
   modules.giveaway?.stopScheduler();
   membercount.stop();
+  presence.stop();
   streams.stop();
   await client.destroy().catch(() => {});
   process.exit(0);

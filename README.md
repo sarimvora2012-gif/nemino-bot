@@ -369,6 +369,10 @@ Both run automatically — there is nothing to type.
 - **Welcome card:** when someone joins, the bot posts a single wide card in <#1528229937893609492> that pings them and shows their avatar, mention, tag, member number, join time, account age and user ID, plus links to the rules and general channels. Set `WELCOME_CHANNEL_ID` in `.env` (or `welcomeChannelId` in `data/data.json`) to use a different channel; otherwise the bot falls back to the first `welcome` channel it can find. Bot accounts are skipped.
 - **Member counter:** the bot creates a voice channel named `Members - <count>` at the very top of the server on first start. `@everyone` cannot connect to it, so it is read-only. Renames follow joins and leaves (debounced, and spaced 5 minutes apart because Discord only allows 2 renames per 10 minutes per channel), with a 10-minute refresh as a safety net. The name template lives in `memberCountTemplate` (`{count}` is replaced); the channel id is stored as `memberCountChannelId`. Only the server in `GUILD_ID` gets a counter channel.
 
+### Bot status
+
+The profile status (set on login in `src/lib/presence.js`) alternates every 60 seconds between **Watching made by seraphum** and **Watching over <count> members**, where the count is the member total of the server in `GUILD_ID` (re-read on each swap, so it does not go stale). One swap a minute stays well inside Discord's presence rate limit.
+
 ### Staff guide
 | Command | Description |
 | --- | --- |

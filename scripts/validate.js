@@ -1966,6 +1966,37 @@ test('the member counter reads the guild member count', () => {
   assert.equal(membercount.memberCount({}), 0);
 });
 
+console.log('\nBot status');
+const presence = require('../src/lib/presence');
+test('the status cycles between the credit and the member count', () => {
+  const client = {
+    guilds: { cache: { first: () => ({ memberCount: 747 }) } },
+    user: { setActivity: () => {} },
+  };
+  const statuses = presence.statusesFor(client);
+  assert.deepEqual(statuses, [presence.CREDIT, 'over 747 members']);
+  assert.equal(presence.statusesFor({ guilds: { cache: { first: () => ({ memberCount: 1 }) } } })[1], 'over 1 member');
+  assert.equal(presence.memberStatus(0), 'over 0 members');
+});
+
+test('each cycle swaps the status and refreshes the count', () => {
+  let count = 747;
+  const seen = [];
+  const client = {
+    guilds: { cache: { first: () => ({ memberCount: count }) } },
+    user: { setActivity: (name) => seen.push(name) },
+  };
+  presence.start(client);
+  presence.stop();
+  presence.apply(client);
+  count = 748;
+  presence.apply(client);
+  presence.apply(client);
+  // The fourth call comes back around to the member count, which is re-read.
+  assert.deepEqual(seen, [presence.CREDIT, 'over 747 members', presence.CREDIT, 'over 748 members']);
+  assert.ok(presence.CYCLE_MS >= 20 * 1000, 'presence updates must stay under Discord rate limits');
+});
+
 console.log('\nSpawner prices & media');
 const spawners = require('../src/lib/spawners');
 const media = require('../src/commands/media');
