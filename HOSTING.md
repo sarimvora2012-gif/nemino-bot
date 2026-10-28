@@ -201,6 +201,8 @@ to watch. If the server pauses, open the panel and resume it — nothing is lost
 | Activity checks / member counts fail | **Server Members** intent is off, or the bot's role sits below the staff role in the role list. |
 | Nothing posts in a channel | Give the bot **View Channel**, **Send Messages**, **Embed Links** in that channel. |
 | Server restarts by itself | RAM or CPU cap. 512 MB should be plenty; if the console says `heap out of memory`, contact Wispbyte support. |
+| **Clone** says `Could not check files` | The panel could not read the server's file list before cloning. Check the **Files** tab: if it also fails to load, the server is not installed / is paused (free plan needs a login every 2 weeks) — resume it, then clone. If Files loads fine, it is the repo: a **private** repo with an empty **Git Access Token** box looks identical to a missing repo (both answer 404), so paste the username + read-only token, or make the repo public. |
+| Clone still refuses after that | The panel only clones into a server it can scan. Upload `nemino-bot.zip` through **Files → Upload** instead — same code, no Git needed. |
 
 ## What runs automatically
 
