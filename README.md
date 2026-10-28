@@ -354,9 +354,17 @@ Both run automatically — there is nothing to type.
 | Command | Description |
 | --- | --- |
 | `!stafffont` | Renames every role at or above the staff role into small caps (Manage Server) |
+| `!stafffont readable` | Same, but keeps the plain name in brackets: `ꜱᴛᴀꜰꜰ (Staff)` |
 | `!stafffont @role` | Restyles just that one role |
+| `!stafffont readable @role` | One role, with the plain name kept |
+| `!pingrole staff` / `!pr staff` | Pings a fancy-named role when you type normal letters (staff) |
 
 Role names are converted with the same font as the channels, so `Staff` becomes `ꜱᴛᴀꜰꜰ` and `👑 Co-Owner` becomes `👑 ᴄᴏ-ᴏᴡɴᴇʀ`. Emoji, numbers and punctuation are kept, and roles already in the font are left alone (running it twice changes nothing). @everyone and bot/integration roles are never touched. A role at or above the bot's own role cannot be renamed — the reply names each one and says to move the bot role higher, then run the command again.
+
+**Pinging a restyled role.** Small-caps letters are different Unicode characters, so typing `@staff` will not find `ꜱᴛᴀꜰꜰ` in the mention menu. There are two ways around it:
+
+- `!pingrole staff` (or `!pr staff`) posts the real mention for you. Matching ignores the font, spaces, hyphens and emoji, so `!pr staff`, `!pr co owner` and `!pr ꜱᴛᴀꜰꜰ` all work, and a unique prefix like `!pr mode` is enough. Ambiguous names get a list to pick from. Staff only, and the role is the only thing pinged.
+- `!stafffont readable` keeps the fun font and appends the plain name, so `ꜱᴛᴀᴛꜰ (Staff)` still autocompletes when you type `@staff`. Run plain `!stafffont` to drop the brackets again.
 
 The guide covers only what staff need day to day: tickets, applications, giveaways, `!strike list`, LOA review, suggestions, general commands and the golden rules. Admin-only commands and systems — `/config`, application question management, ticket-panel setup, all `/activity` commands, `/promote`, `/demote`, `!strike` issuing and removal, `/protect`, `/kick`, moderation and AutoMod — are excluded. When an application is accepted, the acceptance DM includes quick links to the staff rules and staff workflow channels.
 
@@ -371,6 +379,7 @@ The guide covers only what staff need day to day: tickets, applications, giveawa
 | `!to @user 10m [reason]` | Timeout a member (Timeout Members) |
 | `!vouchadd @user 5` | Add vouches (owner / co-owner) |
 | `!vouchresync` | Re-apply vouch counts to nicknames (admin) |
+| `!pingrole staff` / `!pr staff` | Ping a fancy-named role using normal letters (staff) |
 | `!vouchsetup` | Post the vouch panel (admin) |
 | `!stafffont [@role]` | Rename the staff roles into small caps (Manage Server) |
 
@@ -432,6 +441,8 @@ All embeds are created through `embed()` in `src/lib/helpers.js`, which automati
 | A `_link` option says no channel found | The link must belong to this server and the bot must be able to see that channel |
 | A `_link` option says “not a channel link” | Copy it with right-click → **Copy Channel Link**; `<#channel>` and bare IDs work too |
 | `!stafffont` leaves top roles alone | Those roles sit at or above the bot's own role; drag the bot role above them and run it again |
+| `@staff` does not autocomplete | The role is in the small-caps font; use `!pr staff`, or run `!stafffont readable` to keep a plain name in brackets |
+| `!pingrole` says several roles match | Use the full role name — matching ignores the font, so `!pr trial mod` works |
 | The vouch panel is not at the bottom | It is reposted after every vouch. If the channel goes quiet after a refresh it stays put until the next vouch; run `!vouchsetup` to move it down manually |
 | `!to` is refused | You need **Timeout Members**, the member must be below your highest role, and the bot role must be above theirs |
 | Old messages still look like classic embeds | Messages sent before the Components V2 update cannot be converted in place; repost the panel or message to get the new V2 layout |

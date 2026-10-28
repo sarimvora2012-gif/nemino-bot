@@ -24,6 +24,7 @@ const honeypot = require('./lib/honeypot');
 const loa = require('./lib/loa');
 const membercount = require('./lib/membercount');
 const rolefont = require('./lib/rolefont');
+const roleping = require('./lib/roleping');
 const spawnerBoard = require('./lib/spawners');
 const staffguide = require('./lib/staffguide');
 const steal = require('./lib/steal');
@@ -168,6 +169,9 @@ client.on(Events.MessageCreate, (message) => {
   rolefont
     .handleMessage(message, context)
     .catch((err) => console.error('[rolefont] Message handler failed:', err));
+  roleping
+    .handleMessage(message, context)
+    .catch((err) => console.error('[roleping] Message handler failed:', err));
   automod
     .handleMessage(message, context)
     .catch((err) => console.error('[automod] Message handler failed:', err));

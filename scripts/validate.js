@@ -1271,6 +1271,86 @@ test('a pasted link is resolved to a real channel of the right type', async () =
   assert.match(garbage.error, /not a channel link/);
 });
 
+test('plain names find fancy-styled roles for pinging', () => {
+  const { findRole, roleKey } = require('../src/lib/roleping');
+  const { toSmallCaps } = require('../src/lib/smallcaps');
+  const guild = {
+    id: 'g',
+    roles: {
+      cache: new Map(
+        [
+          { id: 'g', name: '@everyone' },
+          { id: 'staff', name: toSmallCaps('Staff') },
+          { id: 'mod', name: toSmallCaps('Moderator') },
+          { id: 'co', name: `👑 ${toSmallCaps('Co-Owner')}` },
+          { id: 'botrole', name: toSmallCaps('SomeBot'), managed: true },
+        ].map((role) => [role.id, { ...role, managed: Boolean(role.managed) }]),
+      ),
+    },
+  };
+
+  assert.equal(roleKey('Co-Owner'), roleKey(`👑 ${toSmallCaps('Co-Owner')}`), 'emoji and font are ignored');
+  assert.equal(findRole(guild, 'staff').role?.id, 'staff', 'plain lowercase works');
+  assert.equal(findRole(guild, 'STAFF').role?.id, 'staff', 'any case works');
+  assert.equal(findRole(guild, 'ꜱᴛᴀꜰꜰ').role?.id, 'staff', 'the fancy name still works');
+  assert.equal(findRole(guild, 'co owner').role?.id, 'co', 'spaces match hyphens');
+  assert.equal(findRole(guild, 'mode').role?.id, 'mod', 'a unique prefix is enough');
+  assert.equal(findRole(guild, 'somebot').role, null, 'bot roles are skipped');
+  assert.equal(findRole(guild, 'everyone').role, null, '@everyone is skipped');
+  assert.equal(findRole(guild, 'nonsense').role, null);
+  assert.equal(findRole(guild, '').role, null);
+});
+
+test('a readable staff font keeps @staff autocompleting', () => {
+  const rolefont = require('../src/lib/rolefont');
+  const { toSmallCaps } = require('../src/lib/smallcaps');
+  const staff = { id: 'staff', name: 'Staff', position: 5, managed: false };
+
+  const readable = rolefont.planRenames([staff], { everyoneId: 'g', readable: true });
+  assert.equal(readable[0].to, `${toSmallCaps('Staff')} (Staff)`);
+
+  const already = rolefont.planRenames(
+    [{ ...staff, name: readable[0].to }],
+    { everyoneId: 'g', readable: true },
+  );
+  assert.deepEqual(already, [], 'running it twice changes nothing');
+
+  const backToPure = rolefont.planRenames(
+    [{ ...staff, name: readable[0].to }],
+    { everyoneId: 'g', readable: false },
+  );
+  assert.equal(backToPure[0].to, toSmallCaps('Staff'), 'plain !stafffont strips the alias again');
+
+  const fromPure = rolefont.planRenames(
+    [{ ...staff, name: toSmallCaps('Staff') }],
+    { everyoneId: 'g', readable: true },
+  );
+  assert.equal(
+    fromPure[0].to,
+    `${toSmallCaps('Staff')} (Staff)`,
+    'an already-styled role gets a plain alias, not a doubled fancy one',
+  );
+
+  const coOwner = { id: 'co', name: `👑 ${toSmallCaps('Co-Owner')}`, position: 9, managed: false };
+  const coReadable = rolefont.planRenames([coOwner], { everyoneId: 'g', readable: true });
+  assert.equal(coReadable[0].to, `👑 ${toSmallCaps('Co-Owner')} (Co-Owner)`, 'emoji stay, alias is plain');
+  assert.deepEqual(
+    rolefont.planRenames(
+      [{ ...coOwner, name: coReadable[0].to }],
+      { everyoneId: 'g', readable: true },
+    ),
+    [],
+    'the alias is not stacked twice',
+  );
+
+  const genuineBrackets = { id: 'eu', name: 'Staff (EU)', position: 5, managed: false };
+  assert.equal(rolefont.splitAlias('Staff (EU)').alias, null, 'real brackets are left alone');
+  assert.equal(
+    rolefont.planRenames([genuineBrackets], { everyoneId: 'g' })[0].to,
+    `${toSmallCaps('Staff')} (ᴇᴜ)`,
+  );
+});
+
 test('nickname updates explain why Discord refuses them', () => {
   const { PermissionFlagsBits } = require('discord.js');
   const build = ({ has = true, mine = 10, theirs = 1, ownerId = 'owner' } = {}) => {

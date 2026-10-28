@@ -185,6 +185,8 @@ async function execute(interaction, { client }) {
           '`/config set log_channel_link:<channel link>` — every channel setting has a `_link` twin you can paste into',
           'Application review channel and accept role also live in `/config set`',
           '`!stafffont [@role]` — rename the staff roles into small caps (admin only)',
+          '`!stafffont readable` — keeps `ꜱᴛᴀꜰꜰ (Staff)` so typing `@staff` still works',
+          '`!pingrole staff` / `!pr staff` — ping a fancy-named role with normal letters (staff)',
           '',
           `-# discord.js ${djsVersion}`,
         ].join('\n'),

@@ -47,4 +47,25 @@ function toSmallCaps(input, maxLength = 100) {
   return [...output].slice(0, maxLength).join('');
 }
 
-module.exports = { toSmallCaps, SMALL_CAPS };
+const FONT_LETTERS = new Set(Object.values(SMALL_CAPS));
+
+/**
+ * Comparison key that ignores the font: `Staff`, `ꜱᴛᴀꜰꜰ` and `@ ꜱᴛᴀᴛꜰ ✦` all
+ * become `ꜱᴛᴀꜰꜰ`. Emoji, spaces and punctuation are dropped, digits are kept.
+ */
+function fontKey(input) {
+  return [...toSmallCaps(input ?? '')]
+    .filter((character) => FONT_LETTERS.has(character) || /[0-9]/.test(character))
+    .join('');
+}
+
+const REVERSE = new Map(Object.entries(SMALL_CAPS).map(([plain, fancy]) => [fancy, plain]));
+
+/** Turns the fancy font back into normal letters: `ꜱᴛᴀꜰꜰ` becomes `staff`. */
+function toPlain(input) {
+  return [...String(input ?? '').normalize('NFKC')]
+    .map((character) => REVERSE.get(character) ?? character)
+    .join('');
+}
+
+module.exports = { fontKey, toPlain, toSmallCaps, SMALL_CAPS };
