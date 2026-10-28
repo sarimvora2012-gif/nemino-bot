@@ -238,10 +238,16 @@ async function usernameOf(client, guild, userId) {
   return fetched?.username ?? 'member';
 }
 
+/** Channel-name prefix per ticket type: giveaway claims say what they are. */
+function ticketLabel(type) {
+  return type === 'giveaway' ? 'giveaway-claim' : 'ticket';
+}
+
 /**
  * Creates a private ticket channel and stores it. Shared by the ticket panel and
  * giveaway prize claims, so both support `/ticket close` and transcripts.
- * The channel is named after the member's username, e.g. `ᴛɪᴄᴋᴇᴛ-sarimvora`.
+ * The channel is named after the member's username, e.g. `ᴛɪᴄᴋᴇᴛ-sarimvora` or
+ * `ɢɪᴠᴇᴀᴡᴀʏ-ᴄʟᴀɪᴍ-sarimvora` for a prize claim.
  */
 async function createTicketChannel({
   client,
@@ -312,7 +318,9 @@ async function createTicketChannel({
 
   // Discord requires channel names to be unique in a guild, so a member opening a
   // second ticket gets -2, -3 rather than the same name.
-  const baseName = `${toSmallCaps('ticket')}-${channelSlug(await usernameOf(client, guild, ownerId))}`;
+  const baseName = `${toSmallCaps(ticketLabel(type))}-${channelSlug(
+    await usernameOf(client, guild, ownerId),
+  )}`;
   let name = baseName;
   for (let suffix = 2; guild.channels.cache.some((c) => c.name === name) && suffix < 50; suffix += 1) {
     name = `${baseName}-${suffix}`;
@@ -817,6 +825,7 @@ module.exports = {
   closeTicket,
   createTicketChannel,
   channelSlug,
+  ticketLabel,
   canCloseTicket,
   deleteTicketChannel,
   sweepClosedTickets,
