@@ -11,10 +11,14 @@ const TARGET_GUILD_ID = () => process.env.GUILD_ID?.trim() || null;
 let timer = null;
 let index = 0;
 
-/** "over 747 members" / "over 1 member" — watching over 747 members. */
+/**
+ * "watching over 747 members" — the whole sentence, because this line is sent
+ * as a custom status where Discord shows the text exactly as written instead of
+ * putting a verb in front of it.
+ */
 function memberStatus(count) {
   const n = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
-  return `over ${n} ${n === 1 ? 'member' : 'members'}`;
+  return `watching over ${n} ${n === 1 ? 'member' : 'members'}`;
 }
 
 function currentCount(client) {
@@ -29,17 +33,35 @@ function statusesFor(client) {
   return [CREDIT, memberStatus(currentCount(client))];
 }
 
+/** The presence activity for one status, ready for setPresence. */
+function activityFor(text) {
+  return text === CREDIT
+    ? { name: CREDIT, type: ActivityType.Watching }
+    : { name: 'Custom Status', state: text, type: ActivityType.Custom };
+}
+
+function show(client, text) {
+  try {
+    client.user.setPresence({ activities: [activityFor(text)] });
+  } catch (err) {
+    // Custom status unsupported on this client: fall back to a watching line
+    // that still reads "Watching over N members" once Discord adds the verb.
+    console.warn('[presence] Custom status failed, using watching instead:', err.message);
+    try {
+      client.user.setActivity(text.replace(/^watching\s+/i, ''), { type: ActivityType.Watching });
+    } catch (retryErr) {
+      console.warn('[presence] Could not update the status:', retryErr.message);
+    }
+  }
+}
+
 function apply(client) {
   if (!client?.user) return null;
   const statuses = statusesFor(client);
-  const name = statuses[index % statuses.length];
+  const text = statuses[index % statuses.length];
   index = (index + 1) % statuses.length;
-  try {
-    client.user.setActivity(name, { type: ActivityType.Watching });
-  } catch (err) {
-    console.warn('[presence] Could not update the status:', err.message);
-  }
-  return name;
+  show(client, text);
+  return text;
 }
 
 /**
@@ -59,4 +81,4 @@ function stop() {
   timer = null;
 }
 
-module.exports = { CREDIT, CYCLE_MS, memberStatus, statusesFor, apply, start, stop };
+module.exports = { CREDIT, CYCLE_MS, memberStatus, statusesFor, activityFor, apply, start, stop };

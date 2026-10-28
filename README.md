@@ -371,7 +371,9 @@ Both run automatically — there is nothing to type.
 
 ### Bot status
 
-The profile status (set on login in `src/lib/presence.js`) alternates every 60 seconds between **Watching made by seraphum** and **Watching over <count> members**, where the count is the member total of the server in `GUILD_ID` (re-read on each swap, so it does not go stale). One swap a minute stays well inside Discord's presence rate limit.
+The profile status (set on login in `src/lib/presence.js`) alternates every 60 seconds between `Watching made by seraphum` and the literal line `watching over <count> members`, where the count is the member total of the server in `GUILD_ID` (re-read on each swap, so it does not go stale).
+
+The credit line is a normal **Watching** activity, so Discord adds the verb for it. The member line is sent as a **custom status** instead, because a watching activity named `watching over …` would display as "Watching watching over …". A custom status prints its text exactly, so the phrase always reads `watching over 747 members`. If a client rejects the custom status the code falls back to a watching activity named `over <count> members`, which Discord renders as `Watching over … members`. One swap a minute stays well inside Discord's presence rate limit.
 
 ### Staff guide
 | Command | Description |

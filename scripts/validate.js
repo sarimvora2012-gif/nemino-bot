@@ -1971,12 +1971,15 @@ const presence = require('../src/lib/presence');
 test('the status cycles between the credit and the member count', () => {
   const client = {
     guilds: { cache: { first: () => ({ memberCount: 747 }) } },
-    user: { setActivity: () => {} },
+    user: { setPresence: () => {} },
   };
   const statuses = presence.statusesFor(client);
-  assert.deepEqual(statuses, [presence.CREDIT, 'over 747 members']);
-  assert.equal(presence.statusesFor({ guilds: { cache: { first: () => ({ memberCount: 1 }) } } })[1], 'over 1 member');
-  assert.equal(presence.memberStatus(0), 'over 0 members');
+  assert.deepEqual(statuses, [presence.CREDIT, 'watching over 747 members']);
+  assert.equal(
+    presence.statusesFor({ guilds: { cache: { first: () => ({ memberCount: 1 }) } } })[1],
+    'watching over 1 member',
+  );
+  assert.equal(presence.memberStatus(0), 'watching over 0 members');
 });
 
 test('each cycle swaps the status and refreshes the count', () => {
@@ -1984,7 +1987,10 @@ test('each cycle swaps the status and refreshes the count', () => {
   const seen = [];
   const client = {
     guilds: { cache: { first: () => ({ memberCount: count }) } },
-    user: { setActivity: (name) => seen.push(name) },
+    user: {
+      setPresence: ({ activities }) =>
+        seen.push(activities[0].state ?? activities[0].name),
+    },
   };
   presence.start(client);
   presence.stop();
@@ -1993,8 +1999,23 @@ test('each cycle swaps the status and refreshes the count', () => {
   presence.apply(client);
   presence.apply(client);
   // The fourth call comes back around to the member count, which is re-read.
-  assert.deepEqual(seen, [presence.CREDIT, 'over 747 members', presence.CREDIT, 'over 748 members']);
+  assert.deepEqual(seen, [
+    presence.CREDIT,
+    'watching over 747 members',
+    presence.CREDIT,
+    'watching over 748 members',
+  ]);
   assert.ok(presence.CYCLE_MS >= 20 * 1000, 'presence updates must stay under Discord rate limits');
+});
+
+test('the member line is a custom status so it is not prefixed with a verb', () => {
+  const credit = presence.activityFor(presence.CREDIT);
+  assert.equal(credit.type, 3); // Watching
+  assert.equal(credit.name, presence.CREDIT);
+  const members = presence.activityFor(presence.memberStatus(747));
+  assert.equal(members.type, 4); // Custom
+  assert.equal(members.state, 'watching over 747 members');
+  assert.equal(members.name, 'Custom Status');
 });
 
 console.log('\nSpawner prices & media');
