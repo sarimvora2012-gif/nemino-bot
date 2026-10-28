@@ -1646,6 +1646,99 @@ function runXpChecks() {
   assert.equal(canSetXp(null, guild), false, 'no member is refused');
 }
 
+test('!purge reads whole numbers and caps staff at 50', () => {
+  const purge = require('../src/lib/purge');
+  const guild = { id: 'g', ownerId: 'nemino' };
+  const member = (id, roles = []) => ({
+    id,
+    roles: { cache: { has: () => false, some: (predicate) => roles.some(predicate) } },
+  });
+
+  assert.equal(purge.parseAmount('25'), 25);
+  assert.equal(purge.parseAmount(' 7 '), 7);
+  assert.equal(purge.parseAmount('0'), null, 'zero is not a purge');
+  assert.equal(purge.parseAmount('-5'), null);
+  assert.equal(purge.parseAmount('abc'), null);
+  assert.equal(purge.parseAmount('1e3'), null);
+  assert.equal(purge.parseAmount(''), null);
+
+  assert.equal(purge.capFor(member('staff'), guild), 50, 'staff are capped at 50');
+  assert.equal(purge.capFor(member('nemino'), guild), 1000, 'the owner is not capped at 50');
+  assert.equal(
+    purge.capFor(member('co', [{ id: 'co', name: '👑 ᴄᴏ-ᴏᴡɴᴇʀ' }]), guild),
+    1000,
+    'a co-owner is not capped at 50 either',
+  );
+});
+
+test('!purge deletes in Discord-sized batches and refuses oversized staff purges', async () => {
+  const purge = require('../src/lib/purge');
+  const { PermissionFlagsBits } = require('discord.js');
+  const guild = { id: 'g', ownerId: 'nemino' };
+  const now = Date.now();
+
+  const channelWith = (count) => {
+    const messages = Array.from({ length: count }, (_, index) => ({
+      id: String(9000 - index),
+      createdTimestamp: now - index * 1000,
+    }));
+    const batches = [];
+    return {
+      batches,
+      isTextBased: () => true,
+      messages: {
+        fetch: async ({ limit, before }) => {
+          const start = before ? messages.findIndex((entry) => entry.id === before) + 1 : 0;
+          const slice = messages.slice(start, start + limit);
+          const map = new Map(slice.map((entry) => [entry.id, entry]));
+          return {
+            size: map.size,
+            values: () => map.values(),
+            last: () => slice[slice.length - 1],
+          };
+        },
+      },
+      bulkDelete: async (chunk) => {
+        batches.push(chunk.map((entry) => entry.id));
+        return { size: chunk.length };
+      },
+      send: async () => ({ delete: async () => {} }),
+    };
+  };
+
+  const run = async ({ id, roles = [], amount, channel }) => {
+    const replies = [];
+    await purge.handleMessage({
+      id: 'cmd',
+      content: `!purge ${amount}`,
+      guild,
+      channel,
+      author: { username: 'Tester' },
+      member: {
+        id,
+        permissions: { has: (flag) => flag === PermissionFlagsBits.ManageMessages },
+        roles: { cache: { has: () => false, some: (predicate) => roles.some(predicate) } },
+      },
+      reply: async (payload) => replies.push(payload),
+      delete: async () => {},
+    });
+    return replies;
+  };
+
+  const refusedChannel = channelWith(20);
+  const refused = await run({ id: 'staff', amount: 60, channel: refusedChannel });
+  assert.equal(refusedChannel.batches.length, 0, 'nothing is deleted when the cap is hit');
+  assert.match(JSON.stringify(refused[0]), /up to \*\*50\*\*/);
+
+  const channel = channelWith(400);
+  await run({ id: 'nemino', amount: 150, channel });
+  assert.deepEqual(
+    channel.batches.map((batch) => batch.length),
+    [100, 50],
+    'Discord only takes 100 ids per call, so the purge is split',
+  );
+});
+
 test('slash commands only re-register when they actually changed', () => {
   const { canonical, diffCommands } = require('../src/lib/commandsync');
   const local = [

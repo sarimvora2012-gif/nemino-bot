@@ -2,25 +2,11 @@
 
 const { SlashCommandBuilder, ChannelType, MessageFlags } = require('discord.js');
 const { embed, successEmbed, errorEmbed, COLORS } = require('../lib/helpers');
-const { fontKey } = require('../lib/smallcaps');
+const { isCoOwnerRole, isOwnerOrCoOwner } = require('../lib/roles');
 const levels = require('../lib/levels');
 
-// `Co-Owner`, `CO OWNER` and a small-capped `💎 ᴄᴏ-ᴏᴡɴᴇʀ` all share a key, so
-// the check still works after `!stafffont` has restyled the role.
-const CO_OWNER_KEYS = new Set(
-  ['co-owner', 'co owner', 'coowner', 'co_owner', 'vice owner'].map(fontKey),
-);
-
-function isCoOwnerRole(role, guild) {
-  return Boolean(role) && role.id !== guild.id && CO_OWNER_KEYS.has(fontKey(role.name));
-}
-
-/** Only the server owner (Nemino) and co-owner roles may hand out XP. */
-function canSetXp(member, guild) {
-  if (!member) return false;
-  if (guild.ownerId === member.id) return true;
-  return Boolean(member.roles?.cache?.some((role) => isCoOwnerRole(role, guild)));
-}
+/** Only the server owner (Nemino) and co-owner roles may touch levels. */
+const canSetXp = isOwnerOrCoOwner;
 
 const data = [
   new SlashCommandBuilder()

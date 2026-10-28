@@ -153,6 +153,15 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
+        name: '🧹 Purge',
+        value: [
+          '`!purge 25` — delete the last 25 messages',
+          'Staff can remove up to **50** per command',
+          'Owner and co-owner can purge up to **1000**',
+          'Messages older than 14 days are kept — Discord does not allow those',
+        ].join('\n'),
+      },
+      {
         name: '📈 Promotions & demotions (admin only)',
         value: [
           '**Manage Server required for `/promote` and `/demote`.**',

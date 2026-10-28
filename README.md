@@ -1,6 +1,6 @@
 # Server Bot
 
-A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **activity checks**, **leave of absence requests**, **suggestions**, **automod**, **promotions / demotions**, **strikes** and **kick protection**. Built with [discord.js v14](https://discord.js.org). Slash commands handle almost everything, with `!loasetup`, `!staffguide`, `!to`, `!strike` and the vouch commands as prefix commands. Activity checks use the **Server Members Intent**; automod uses the **Message Content Intent**.
+A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **activity checks**, **leave of absence requests**, **suggestions**, **automod**, **promotions / demotions**, **strikes** and **kick protection**. Built with [discord.js v14](https://discord.js.org). Slash commands handle almost everything, with `!loasetup`, `!staffguide`, `!to`, `!purge`, `!strike` and the vouch commands as prefix commands. Activity checks use the **Server Members Intent**; automod uses the **Message Content Intent**.
 
 ## Features
 
@@ -19,6 +19,7 @@ A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **a
 | 🎥 Videos & streams | `/upload video link:<url>` announces a new video and pings the Nemo role; `/golive` pings the server with the stream title; the bot also watches youtube.com/@RealNemino and announces when it goes live |
 | 🎟️ Vouches | `:vouch @user` in a vouch channel, `Name (count)` nicknames, a how-to panel that is reposted so it stays newest, `/vouch leaderboard` and owner-only `!vouchadd` |
 | ⏳ Timeouts | `!to @user 10m [reason]` with hierarchy checks, a DM to the member and an entry in the moderation log |
+| 🧹 Purge | `!purge 25` bulk-deletes messages — 50 per command for staff, up to 1000 for the owner and co-owner |
 | 🛡️ AutoMod | Scam/phishing detection, invite and link blocking, ad filtering, anti-spam, mass-mention protection and dangerous-file blocking |
 | 🍯 Honeypot | `!honeypot` turns a channel into a trap: anyone who types there is kicked, DMed a fresh invite and logged |
 | 👋 Welcome card | A wide Components V2 card in the welcome channel for every new member: avatar, mention, member number and join time |
@@ -324,6 +325,13 @@ Levels are counted by this bot only — nothing is read from another bot's datab
 
 Times accept `10m`, `1h`, `2d` or `1w`; a bare number means minutes. The minimum is 1 minute and the maximum is Discord's 28-day limit. The moderator needs **Timeout Members**, role hierarchy is respected, and the member is DMed with the duration and reason. The log entry includes the member, moderator, duration, end time, channel and reason.
 
+### Purge
+| Command | Description |
+| --- | --- |
+| `!purge <amount>` | Deletes the last `<amount>` messages in the channel |
+
+Requires **Manage Messages**. Staff are capped at **50** messages per command; the owner (Nemino) and co-owner roles are not, up to Discord's own ceiling of **1000** per purge. Messages are fetched newest-first in pages of 100 and deleted in batches of 100, so a purge can span several API calls instead of stopping at Discord's per-request limit. Anything older than 14 days is skipped — Discord refuses to bulk-delete it — and the confirmation reports how many were removed and how many were kept. The command message itself is removed, and the confirmation disappears after 5 seconds so it does not clutter the channel.
+
 ### AutoMod
 | Protection | What happens |
 | --- | --- |
@@ -417,6 +425,7 @@ The guide covers only what staff need day to day: tickets, applications, giveawa
 | `/config set <name>_link:<url>` | Set a channel setting by pasting a channel link |
 | `/vouch leaderboard` | Top 10 most vouched members |
 | `!to @user 10m [reason]` | Timeout a member (Timeout Members) |
+| `!purge 25` | Bulk-delete messages (staff cap 50, owner/co-owner 1000) |
 | `!vouchadd @user 5` | Add vouches (owner / co-owner) |
 | `!vouchresync` | Re-apply vouch counts to nicknames (admin) |
 | `!pingrole staff` / `!pr staff` | Ping a fancy-named role using normal letters (staff) |
@@ -433,6 +442,8 @@ src/
   lib/helpers.js        embeds, staff checks, hierarchy helpers, logging
   lib/vouch.js          :vouch counting, nickname counts, pinned panel, leaderboard
   lib/timeout.js        `!to @user <time>` timeout command and moderation log
+  lib/purge.js          `!purge <amount>` bulk delete with staff and owner caps
+  lib/roles.js          owner / co-owner role check shared by purge and levels
   lib/v2.js             converts embeds/content into Components V2 display components
   lib/protection.js     kick-protection role, admin bypass and kick checks
   lib/activity.js       activity check lifecycle, reactions, reminders, scheduler

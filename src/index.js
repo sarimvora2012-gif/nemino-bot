@@ -32,6 +32,7 @@ const { errorEmbed } = require('./lib/helpers');
 const activity = require('./lib/activity');
 const automod = require('./lib/automod');
 const honeypot = require('./lib/honeypot');
+const purge = require('./lib/purge');
 const levels = require('./lib/levels');
 const loa = require('./lib/loa');
 const membercount = require('./lib/membercount');
@@ -158,6 +159,9 @@ client.on(Events.MessageCreate, (message) => {
   timeout
     .handleMessage(message, context)
     .catch((err) => console.error('[timeout] Message handler failed:', err));
+  purge
+    .handleMessage(message, context)
+    .catch((err) => console.error('[purge] Message handler failed:', err));
   strike
     .handleMessage(message, context)
     .catch((err) => console.error('[strike] Message handler failed:', err));
