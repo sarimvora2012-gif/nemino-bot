@@ -509,7 +509,7 @@ async function openTicket(interaction, { store }) {
       title: 'Ticket opened',
       color: COLORS.success,
       fields: [
-        { name: 'Member', value: `${interaction.user} (${interaction.user.id})`, inline: true },
+        { name: 'Member', value: `${interaction.user}`, inline: true },
         { name: 'Channel', value: `${channel}`, inline: true },
         { name: 'Number', value: `#${String(number).padStart(4, '0')}`, inline: true },
       ],
@@ -708,16 +708,18 @@ async function closeTicket(client, channel, ticket, settings, { closedBy, reason
       title: 'Ticket closed',
       color: COLORS.danger,
       fields: [
-        { name: 'Ticket', value: `#${String(ticket.number).padStart(4, '0')} (${channel.name})`, inline: true },
+        { name: 'Ticket', value: `#${String(ticket.number).padStart(4, '0')}`, inline: true },
         { name: 'Opened by', value: `<@${ticket.userId}>`, inline: true },
         { name: 'Closed by', value: `${closedBy}`, inline: true },
         { name: 'Reason', value: truncate(reason, 500) },
-        {
-          name: 'Channel',
-          value: deletion.deleted
-            ? '✅ Deleted'
-            : `⚠️ Could not be deleted: ${truncate(deletion.error ?? 'unknown error', 300)}`,
-        },
+        ...(deletion.deleted
+          ? []
+          : [
+              {
+                name: '⚠️ Channel not deleted',
+                value: truncate(deletion.error ?? 'unknown error', 300),
+              },
+            ]),
       ],
     }),
   ]);
@@ -730,7 +732,7 @@ async function closeTicket(client, channel, ticket, settings, { closedBy, reason
           'Your ticket was closed',
           [
             `**Ticket:** #${String(ticket.number).padStart(4, '0')} in **${guild.name}**`,
-            `**Closed by:** ${closedBy.tag}`,
+            `**Closed by:** ${closedBy}`,
             `**Reason:** ${reason}`,
             '',
             'If you still need help, feel free to open a new ticket.',

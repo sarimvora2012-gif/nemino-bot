@@ -108,7 +108,7 @@ function strikesEmbed(user, strikes, color = COLORS.brand) {
   }
 
   return embed({
-    title: `⚠️ Strikes — ${user.tag}`,
+    title: `⚠️ Strikes — ${user.username}`,
     color: active.length ? color : COLORS.success,
     fields,
     thumbnail: user.displayAvatarURL(),
@@ -270,7 +270,6 @@ async function handleMessage(message, { store }) {
         embed({
           title: '⚠️ You received a strike',
           description: [
-            `**Server:** ${guild.name}`,
             `**Strike:** ${strike.id}`,
             `**Reason:** ${reason}`,
             `**Active strikes:** ${activeCount}`,

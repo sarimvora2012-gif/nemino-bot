@@ -19,7 +19,20 @@ const COLORS = {
 
 const EMBED_SIGNATURE = 'made by seraphum';
 
-function embed({ title, description, color = COLORS.brand, fields = [], footer, thumbnail }) {
+/**
+ * Builds a classic embed. Timestamps are off by default — Discord already shows
+ * when a message was sent, so the footer only carries the signature. Pass
+ * `timestamp: true` (or a date) for the rare card that is a record of a moment.
+ */
+function embed({
+  title,
+  description,
+  color = COLORS.brand,
+  fields = [],
+  footer,
+  thumbnail,
+  timestamp = false,
+}) {
   const built = new EmbedBuilder().setColor(color);
   if (title) built.setTitle(title);
   if (description) built.setDescription(description);
@@ -35,7 +48,7 @@ function embed({ title, description, color = COLORS.brand, fields = [], footer, 
   });
 
   if (thumbnail) built.setThumbnail(thumbnail);
-  built.setTimestamp(new Date());
+  if (timestamp) built.setTimestamp(timestamp === true ? new Date() : new Date(timestamp));
   return built;
 }
 

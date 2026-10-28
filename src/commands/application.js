@@ -203,10 +203,7 @@ function reviewEmbeds(application, statusText) {
         name: truncate(entry.question, 100),
         value: truncate(entry.answer, 350),
       })),
-      footer:
-        index === 0
-          ? `User ID: ${application.userId} · Submitted · full answers attached`
-          : undefined,
+      footer: index === 0 ? 'Full answers attached' : undefined,
     });
     if (index === 0) {
       built.addFields({
@@ -828,7 +825,7 @@ async function openApplicationTicket(interaction, { store, applicationId }) {
     ].join('\n'),
     color: COLORS.brand,
     fields: [
-      { name: 'Applicant', value: `${applicant.user} (${applicant.id})`, inline: true },
+      { name: 'Applicant', value: `${applicant.user}`, inline: true },
       { name: 'Application', value: application.id, inline: true },
       { name: 'Status', value: status, inline: true },
       ...(reviewLink
@@ -865,7 +862,7 @@ async function openApplicationTicket(interaction, { store, applicationId }) {
       title: 'Application ticket opened',
       color: COLORS.success,
       fields: [
-        { name: 'Applicant', value: `${applicant.user} (${applicant.id})`, inline: true },
+        { name: 'Applicant', value: `${applicant.user}`, inline: true },
         { name: 'Application', value: application.id, inline: true },
         { name: 'Opened by', value: `${interaction.user}`, inline: true },
         { name: 'Channel', value: `${channel}`, inline: true },
@@ -995,7 +992,7 @@ async function handleButton(interaction, { store }) {
         title: 'Application accepted',
         color: COLORS.success,
         fields: [
-          { name: 'Applicant', value: `${member.user} (${member.id})`, inline: true },
+          { name: 'Applicant', value: `${member.user}`, inline: true },
           { name: 'Application', value: application.id, inline: true },
           { name: 'Reviewed by', value: `${interaction.user}`, inline: true },
           ...(roleWarning ? [{ name: '⚠️ Role not applied', value: truncate(roleWarning, 1024) }] : []),

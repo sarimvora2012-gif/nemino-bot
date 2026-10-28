@@ -200,18 +200,12 @@ function buildEmbed(guild, check, reactedIds, { ended = false } = {}) {
       : allDone
         ? `> ✅ **Everyone has checked in!** Thanks for reacting early 💚`
         : `> ${CHECK_EMOJI} **React with ${CHECK_EMOJI} below to check in** · 🌴 LOA is skipped automatically`,
-    description: [
-      `👥 **${required.length} active**`,
-      `${CHECK_EMOJI} **${reacted}/${required.length} reacted**`,
-      `🌴 **${loa.length} on LOA**`,
-      `🕒 **${given} given**`,
-    ].join(' · '),
+    description: [`🌴 **${loa.length} on LOA**`, `🕒 **${given} given**`].join(' · '),
     progress: {
       percent,
       emoji: allDone ? '🎯' : '📈',
       label: `${reacted} of ${required.length} checked in`,
     },
-    footer: `${totalRoster} staff on the roster`,
     thumbnail: guild.iconURL({ size: 256 }) ?? undefined,
   });
 }
@@ -376,12 +370,10 @@ async function refreshCheck(ctx, guild, { ping = false, final = false, reconcile
           : '> ✅ **Everyone responded before the check closed.**',
         color: missing.length ? COLORS.danger : COLORS.success,
         fields: [
-          { name: '👥 Active Staff', value: `${check.requiredIds.length}`, inline: true },
           { name: '✅ Reacted', value: `${check.lastReactedCount}/${check.requiredIds.length}`, inline: true },
           { name: '🌴 On LOA', value: `${check.loaIds.length}`, inline: true },
-          { name: '⚠️ Not Reacted', value: `${missing.length}`, inline: true },
         ],
-        footer: check.auto ? 'Automatic check' : check.startedBy?.tag ? `Started by ${check.startedBy.tag}` : undefined,
+        footer: check.auto ? 'Automatic check' : undefined,
         thumbnail: guild.iconURL({ size: 256 }) ?? undefined,
       }),
     ]);

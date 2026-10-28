@@ -97,7 +97,6 @@ function requestEmbed(request) {
           ? COLORS.danger
           : COLORS.warning,
     fields,
-    footer: `User ID: ${request.userId}`,
   });
 }
 
@@ -341,7 +340,7 @@ async function acceptRequest(interaction, request, { store }) {
       title: 'LOA request accepted',
       color: COLORS.success,
       fields: [
-        { name: 'Member', value: `${member.user} (${member.id})`, inline: true },
+        { name: 'Member', value: `${member.user}`, inline: true },
         { name: 'Request', value: request.id, inline: true },
         { name: 'Accepted by', value: `${interaction.user}`, inline: true },
         { name: 'Duration', value: truncate(request.duration, 200) },

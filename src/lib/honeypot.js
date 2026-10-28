@@ -169,7 +169,7 @@ async function handleMessage(message, { store }) {
     embed({
       title: kicked ? '🍯 Honeypot triggered — member kicked' : '🍯 Honeypot triggered — kick failed',
       description: [
-        `**Member:** ${member.user.tag} (${member.id})`,
+        `**Member:** ${member}`,
         `**Channel:** #${channelName}`,
         `**Message:** ${String(message.content ?? '').slice(0, 300) || '_no text_'}`,
         `**DM with invite:** ${dmSent ? 'sent' : 'not delivered'}`,

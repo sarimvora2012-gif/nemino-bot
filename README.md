@@ -426,7 +426,7 @@ transcripts/            ticket transcripts, git-ignored
 npm run check   # validates command JSON, handlers and the data store without a token
 ```
 
-All embeds are created through `embed()` in `src/lib/helpers.js`, which automatically adds the small `made by seraphum` footer signature. At send time, `src/lib/v2.js` converts those embeds and plain text into Discord **Components V2** containers. The V2 text limit is 4000 characters, so unusually long cards are truncated; application reviews still include the full answer file. Messages posted before the update stay in the classic embed style until they are reposted — rerun panel commands such as `/ticket panel` or `/application panel` to post a V2 version.
+All embeds are created through `embed()` in `src/lib/helpers.js`, which adds the small `made by seraphum` footer signature and **no timestamp** — Discord already shows when a message was sent. Pass `timestamp: true` to the helper for the rare card that records a moment. The cards stay deliberately lean: members are shown by mention instead of `name#tag` plus ID, and stats that repeat another line (a missing count next to the reacted count, a member number in both the subtitle and the body) appear only once. At send time, `src/lib/v2.js` converts those embeds and plain text into Discord **Components V2** containers. The V2 text limit is 4000 characters, so unusually long cards are truncated; application reviews still include the full answer file. Messages posted before the update stay in the classic embed style until they are reposted — rerun panel commands such as `/ticket panel` or `/application panel` to post a V2 version.
 
 ## Troubleshooting
 

@@ -380,7 +380,7 @@ function movementCard({ guild, member, targetRole, fromRole, moderator, reason, 
       ? `> 🎊 **${member}** has been promoted to **${targetRole}**!`
       : `> 📉 **${member}** has been demoted to **${targetRole}**.`,
     stats: [
-      { emoji: '👤', label: 'Member', value: `${member} \`${member.user.tag}\`` },
+      { emoji: '👤', label: 'Member', value: `${member}` },
       {
         emoji: isPromote ? '🏅' : '🔄',
         label: isPromote ? 'New role' : 'Role change',

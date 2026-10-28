@@ -459,7 +459,6 @@ async function sendLinkAlert(message, settings, { linkReasons, links, action }) 
             { name: '🛡️ Action', value: truncate(action, 500) },
             { name: '💬 Message', value: truncate(message.content || '*No text content*', 1000) },
           ],
-          footer: `Message ID: ${message.id}`,
         }),
       ],
       allowedMentions: { parse: [], roles: roleId ? [roleId] : [] },
@@ -577,14 +576,13 @@ async function handleMessage(message, { store }, { trackSpam = true } = {}) {
       title: '🛡️ AutoMod action',
       color: severity === 'high' ? COLORS.danger : COLORS.warning,
       fields: [
-        { name: 'Member', value: `${message.author} (${message.author.id})`, inline: true },
+        { name: 'Member', value: `${message.author}`, inline: true },
         { name: 'Channel', value: `${message.channel}`, inline: true },
         { name: 'Action', value: truncate(action, 500), inline: true },
         { name: 'Reasons', value: truncate(reasons.join('\n'), 1024) },
         { name: 'Message', value: truncate(message.content || '*No text content*', 1000) },
         ...(timeoutError ? [{ name: '⚠️ Timeout error', value: truncate(timeoutError, 1000) }] : []),
       ],
-      footer: `Message ID: ${message.id}`,
     }),
   ]);
 

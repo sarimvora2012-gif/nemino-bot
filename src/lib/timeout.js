@@ -139,9 +139,9 @@ async function handleMessage(message, { store }) {
       successEmbed(
         'Member timed out',
         [
-          `**Member:** ${target} \`${target.user.tag}\``,
+          `**Member:** ${target}`,
           `**Duration:** ${formatTimeout(ms)}`,
-          `**Ends:** ${timestamp(expiresAt)} (${relative(expiresAt)})`,
+          `**Ends:** ${relative(expiresAt)}`,
           `**Reason:** ${reason}`,
         ].join('\n'),
       ),
@@ -153,11 +153,10 @@ async function handleMessage(message, { store }) {
     embed({
       title: '⏳ Member timed out',
       description: [
-        `**Member:** ${target} \`${target.user.tag}\` (\`${target.id}\`)`,
-        `**Moderator:** ${message.author} \`${message.author.tag}\``,
+        `**Member:** ${target}`,
+        `**Moderator:** ${message.author}`,
         `**Duration:** ${formatTimeout(ms)}`,
-        `**Ends:** ${timestamp(expiresAt)} (${relative(expiresAt)})`,
-        `**Channel:** ${message.channel}`,
+        `**Ends:** ${timestamp(expiresAt)}`,
         `**Reason:** ${reason}`,
       ].join('\n'),
       color: COLORS.warning,
@@ -170,9 +169,8 @@ async function handleMessage(message, { store }) {
       embed({
         title: '⏳ You were timed out',
         description: [
-          `**Server:** ${guild.name}`,
           `**Duration:** ${formatTimeout(ms)}`,
-          `**Ends:** ${timestamp(expiresAt)} (${relative(expiresAt)})`,
+          `**Ends:** ${relative(expiresAt)}`,
           `**Reason:** ${reason}`,
         ].join('\n'),
         color: COLORS.warning,

@@ -89,10 +89,12 @@ async function execute(interaction, { store }) {
     title: '👢 Member kicked',
     color: COLORS.warning,
     fields: [
-      { name: 'Member', value: `${user.tag} (${user.id})`, inline: true },
+      { name: 'Member', value: `${user}`, inline: true },
       { name: 'Moderator', value: `${interaction.user}`, inline: true },
-      { name: 'Kick protection', value: protectedMember ? '🛡️ Protected — admin bypass' : 'None', inline: true },
       { name: 'Reason', value: reason },
+      ...(protectedMember
+        ? [{ name: 'Kick protection', value: '🛡️ Protected — admin bypass', inline: true }]
+        : []),
     ],
     thumbnail: user.displayAvatarURL(),
   });

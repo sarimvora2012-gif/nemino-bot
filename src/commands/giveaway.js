@@ -151,7 +151,7 @@ function activeEmbed(giveaway) {
     description: [
       `**Prize:** ${giveaway.prize}`,
       `**Host:** <@${giveaway.hostId}>`,
-      `**Ends:** ${relative(giveaway.endsAt)} (${timestamp(giveaway.endsAt)})`,
+      `**Ends:** ${relative(giveaway.endsAt)}`,
       `**Claim window:** ${activity.formatDuration(giveaway.claimSeconds, { seconds: true })} after the giveaway ends`,
       `**Entries:** ${giveaway.entries.length}`,
       ...(giveaway.winnerCount > 1 ? [`**Winners:** ${giveaway.winnerCount}`] : []),
@@ -159,7 +159,7 @@ function activeEmbed(giveaway) {
       'Click **Enter Giveaway** below for a chance to win!',
     ].join('\n'),
     color: COLORS.brand,
-    footer: `${giveaway.id} · Hosted by ${giveaway.hostTag}`,
+    footer: giveaway.id,
   });
 }
 
@@ -612,7 +612,7 @@ async function handleClaim(interaction, ctx, giveaway) {
       color: COLORS.success,
       fields: [
         { name: 'Giveaway', value: `${giveaway.id} · ${truncate(giveaway.prize, 200)}`, inline: true },
-        { name: 'Winner', value: `${winner} (${winner.id})`, inline: true },
+        { name: 'Winner', value: `${winner}`, inline: true },
         { name: 'Ticket', value: `${channel}`, inline: true },
         {
           name: 'Still claiming',

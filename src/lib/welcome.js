@@ -37,10 +37,9 @@ function welcomeCard(member, guild, memberCount) {
         (channel) => channel.isTextBased() && /general|chat/i.test(channel.name ?? ''),
       )?.id;
 
-  const grid = [
-    [`👤 **Member** · ${user}`, `📅 **Joined** · ${timestamp(joined)}`].join('   •   '),
-    `🔢 **Member #** · **${memberCount}**`,
-  ].join('\n');
+  const grid = [`👤 **Member** · ${user}`, `📅 **Joined** · ${timestamp(joined)}`].join(
+    '   •   ',
+  );
 
   const startHere = [
     `📜 **Read the rules** · <#${rulesId}>`,
@@ -54,8 +53,7 @@ function welcomeCard(member, guild, memberCount) {
     accent: ACCENT,
     kicker: toSmallCaps('welcome'),
     title: `👋 WELCOME TO ${toSmallCaps(guild.name, 60)}`,
-    subtitle: `you are member #${memberCount}`,
-    quote: `> 🎉 **${user}** just joined the server!`,
+    subtitle: `member #${memberCount}`,
     description: grid,
     sections: [`> ✨ Enjoy your stay!`, startHere],
     footer: 'Welcome aboard',

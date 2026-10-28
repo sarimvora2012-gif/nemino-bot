@@ -62,7 +62,7 @@ async function execute(interaction, { store }) {
     }
     const lines = [...ids].map((id) => {
       const cached = guild.members.cache.get(id);
-      return cached ? `• ${cached} — \`${cached.user.tag}\`` : `• <@${id}>`;
+      return cached ? `• ${cached}` : `• <@${id}>`;
     });
     await interaction.reply({
       embeds: [

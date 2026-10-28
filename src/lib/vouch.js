@@ -350,10 +350,10 @@ async function handleMessage(message, { store }) {
       embed({
         title: '🛠️ Vouches added manually',
         description: [
-          `**Member:** ${target} \`${target.user.tag}\``,
+          `**Member:** ${target}`,
           `**Amount:** ${amount}`,
           `**Total now:** ${result.count}`,
-          `**By:** ${message.author} \`${message.author.tag}\``,
+          `**By:** ${message.author}`,
         ].join('\n'),
         color: COLORS.warning,
       }),

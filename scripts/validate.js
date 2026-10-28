@@ -749,7 +749,8 @@ test('activity check builds a wide Components V2 card', () => {
   const all = activityCardText(payload);
   assert.ok(all.includes('📊'));
   assert.ok(all.includes('50%'));
-  assert.ok(all.includes('👥'));
+  assert.ok(all.includes('1 of 2 checked in'), 'the progress bar carries the staff count');
+  assert.ok(!all.includes('👥'), 'no duplicate active-staff line');
   assert.ok(all.includes('🌴'));
   assert.ok(all.includes('made by seraphum'));
   assert.ok(all.includes('left'));
@@ -1479,7 +1480,8 @@ test('the welcome card is one wide container with the profile and join time', ()
   assert.equal(payload.content, undefined, 'V2 messages reject a content field');
   const text = textOf(payload);
   assert.ok(text.includes('<@u-1>'), 'mentions the new member');
-  assert.ok(text.includes('Member #') && text.includes('747'), 'shows the member number');
+  assert.ok(text.includes('member #747'), 'shows the member number');
+  assert.equal((text.match(/747/g) ?? []).length, 1, 'the member number appears once, not twice');
   assert.ok(text.includes('Joined'), 'shows the join line');
   assert.ok(text.includes('avatars/u-1/a.png'), 'uses their avatar');
   assert.ok(!text.includes('newbie#0001'), 'no tag line');
