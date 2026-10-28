@@ -1400,7 +1400,9 @@ test('the icon plan skips members, bot roles and roles above the bot', () => {
 
   assert.deepEqual(plan.planned.map((entry) => entry.role.id), ['admin', 'staff'], 'highest first');
   assert.equal(plan.planned[0].emoji?.name, 'admin', 'server emoji art is picked up');
-  assert.equal(plan.planned[1].emoji, null, 'no art for staff, so the plain emoji is used');
+  assert.equal(plan.planned[1].emoji, null, 'no server art for staff');
+  assert.equal(plan.planned[1].source, 'icon', 'the bundled custom icon wins');
+  assert.match(plan.planned[1].iconPath, /staff\.png$/);
   assert.deepEqual(plan.blocked.map((entry) => entry.role.id), ['owner'], 'owner sits above the bot');
   assert.deepEqual(plan.skipped.map((role) => role.id), ['member'], 'non-staff roles are skipped');
 });
@@ -1417,6 +1419,26 @@ test('role icons apply as emoji when no server art exists', async () => {
   const method = await applyIcon({ role, level: { emoji: '⭐' }, emoji: null });
   assert.deepEqual(calls, [['unicode', '⭐']]);
   assert.match(method, /⭐/);
+
+  // The bundled PNG is uploaded as the icon, not treated as an emoji.
+  const imageCalls = [];
+  const imageRole = {
+    setUnicodeEmoji: async () => {},
+    setIcon: async (buffer) => imageCalls.push(buffer),
+  };
+  const { iconFile } = require('../src/lib/roleicons');
+  const staffIcon = iconFile({ id: 'staff' });
+  assert.ok(staffIcon, 'assets/role-icons/staff.png should exist');
+  const imageMethod = await applyIcon({
+    role: imageRole,
+    level: { id: 'staff', emoji: '⭐' },
+    emoji: null,
+    iconPath: staffIcon,
+  });
+  assert.equal(imageCalls.length, 1);
+  assert.ok(Buffer.isBuffer(imageCalls[0]));
+  assert.equal(imageCalls[0].subarray(0, 4).toString('hex'), '89504e47', 'a real PNG is uploaded');
+  assert.match(imageMethod, /custom icon/);
 
   const { emojiTag } = require('../src/lib/roleicons');
   assert.equal(emojiTag({ id: '900', name: 'admin' }), '<:admin:900>');

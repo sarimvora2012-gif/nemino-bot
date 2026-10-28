@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "deploy": "node src/deploy-commands.js",
+    "icons": "node scripts/make-role-icons.js",
     "check": "node scripts/validate.js"
   },
   "engines": {

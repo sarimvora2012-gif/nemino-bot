@@ -381,7 +381,9 @@ Roles are matched by name — the font, emoji and punctuation are ignored — so
 | Helper | 🤝 | `helper`, `handshake` |
 | Staff | ⭐ | `staff`, `star` |
 
-Discord role icons accept a unicode emoji or an uploaded image — a custom emoji cannot be picked as one. So when your server has emoji art whose name matches the table, the bot downloads that emoji's PNG and sets it as the role icon; otherwise it sets the plain emoji. Upload art named `admin`, `mod` and so on, run `!roleicons` again, and the real art takes over. Icons are only applied after you press **Apply icons** on the preview, and roles at or above the bot's own role are listed instead of being attempted.
+The set ships with **custom-made PNG art** in `assets/role-icons/` — one 256×256 icon per rung, drawn by `npm run icons` (`scripts/make-role-icons.js`), so there are no third-party assets. Apply order is: the bundled icon, then your own server emoji art, then the plain emoji.
+
+Discord role icons accept a unicode emoji or an uploaded image — a custom emoji cannot be picked as one. That is why the bot uploads a PNG rather than pointing at an emoji: press **Apply icons** and it uploads these files as each role's icon. If you would rather use your own art, upload emoji named `admin`, `mod`, `owner`… and delete the matching PNG, or replace the file with your own artwork at the same size. Icons are only applied after you press **Apply icons** on the preview, and roles at or above the bot's own role are listed instead of being attempted.
 
 **Pinging a restyled role.** Small-caps letters are different Unicode characters, so typing `@staff` will not find `ꜱᴛᴀꜰꜰ` in the mention menu. There are two ways around it:
 
