@@ -1352,6 +1352,78 @@ test('a readable staff font keeps @staff autocompleting', () => {
   );
 });
 
+test('staff role names map to a rung of the icon ladder', () => {
+  const { levelForRole } = require('../src/lib/roleicons');
+  const { toSmallCaps } = require('../src/lib/smallcaps');
+
+  assert.equal(levelForRole('Owner').id, 'owner');
+  assert.equal(levelForRole(toSmallCaps('Owner')).id, 'owner', 'font is ignored');
+  assert.equal(levelForRole('👑 Co-Owner').id, 'coowner', 'co-owner is not mistaken for owner');
+  assert.equal(levelForRole('Administrator').id, 'admin');
+  assert.equal(levelForRole('Head Admin').id, 'head', 'head wins over admin');
+  assert.equal(levelForRole('Senior Moderator').id, 'senior', 'senior wins over moderator');
+  assert.equal(levelForRole('Trial Moderator').id, 'trial', 'trial wins over moderator');
+  assert.equal(levelForRole('Moderator').id, 'mod');
+  assert.equal(levelForRole('Helper').id, 'helper');
+  assert.equal(levelForRole('Staff Team').id, 'staff');
+  assert.equal(levelForRole('Member'), null);
+  assert.equal(levelForRole('Vouched'), null);
+});
+
+test('the icon plan skips members, bot roles and roles above the bot', () => {
+  const { buildPlan } = require('../src/lib/roleicons');
+  const guild = {
+    id: 'g',
+    emojis: {
+      cache: {
+        find: (predicate) =>
+          [{ id: '900', name: 'admin', imageURL: () => 'https://cdn/900.png' }].find(predicate) ?? null,
+      },
+    },
+    members: { me: { roles: { highest: { position: 20 } } } },
+    roles: {
+      cache: {
+        values: () =>
+          [
+            { id: 'g', name: '@everyone', position: 0, managed: false },
+            { id: 'member', name: 'Member', position: 1, managed: false },
+            { id: 'staff', name: 'Staff', position: 5, managed: false },
+            { id: 'admin', name: 'Admin', position: 10, managed: false },
+            { id: 'owner', name: 'Owner', position: 25, managed: false },
+            { id: 'botrole', name: 'SomeBot', position: 12, managed: true },
+          ][Symbol.iterator](),
+        get: (id) => null,
+      },
+    },
+  };
+  const plan = buildPlan(guild, { staffRoleId: 'staff' });
+
+  assert.deepEqual(plan.planned.map((entry) => entry.role.id), ['admin', 'staff'], 'highest first');
+  assert.equal(plan.planned[0].emoji?.name, 'admin', 'server emoji art is picked up');
+  assert.equal(plan.planned[1].emoji, null, 'no art for staff, so the plain emoji is used');
+  assert.deepEqual(plan.blocked.map((entry) => entry.role.id), ['owner'], 'owner sits above the bot');
+  assert.deepEqual(plan.skipped.map((role) => role.id), ['member'], 'non-staff roles are skipped');
+});
+
+test('role icons apply as emoji when no server art exists', async () => {
+  const { applyIcon } = require('../src/lib/roleicons');
+  const calls = [];
+  const role = {
+    name: 'Staff',
+    setUnicodeEmoji: async (emoji) => calls.push(['unicode', emoji]),
+    setIcon: async () => calls.push(['icon']),
+  };
+
+  const method = await applyIcon({ role, level: { emoji: '⭐' }, emoji: null });
+  assert.deepEqual(calls, [['unicode', '⭐']]);
+  assert.match(method, /⭐/);
+
+  const { emojiTag } = require('../src/lib/roleicons');
+  assert.equal(emojiTag({ id: '900', name: 'admin' }), '<:admin:900>');
+  assert.equal(emojiTag({ id: '901', name: 'fire', animated: true }), '<a:fire:901>');
+  assert.equal(emojiTag(null), '');
+});
+
 test('nickname updates explain why Discord refuses them', () => {
   const { PermissionFlagsBits } = require('discord.js');
   const build = ({ has = true, mine = 10, theirs = 1, ownerId = 'owner' } = {}) => {

@@ -358,8 +358,30 @@ Both run automatically — there is nothing to type.
 | `!stafffont @role` | Restyles just that one role |
 | `!stafffont readable @role` | One role, with the plain name kept |
 | `!pingrole staff` / `!pr staff` | Pings a fancy-named role when you type normal letters (staff) |
+| `!roleicons` | Preview and apply staff role icons (Manage Server) |
 
 Role names are converted with the same font as the channels, so `Staff` becomes `ꜱᴛᴀꜰꜰ` and `👑 Co-Owner` becomes `👑 ᴄᴏ-ᴏᴡɴᴇʀ`. Emoji, numbers and punctuation are kept, and roles already in the font are left alone (running it twice changes nothing). @everyone and bot/integration roles are never touched. A role at or above the bot's own role cannot be renamed — the reply names each one and says to move the bot role higher, then run the command again.
+
+### Staff role icons
+| Command | Description |
+| --- | --- |
+| `!roleicons` | Shows what each staff role would get, with **Apply icons** and **Cancel** buttons |
+
+Roles are matched by name — the font, emoji and punctuation are ignored — so `ꜱᴛᴀᴀꜰ`, `Staff Team` and `Staff` all land on the same rung. Most specific first, so `Trial Mod` never falls through to `Mod` and `Co-Owner` never falls through to `Owner`.
+
+| Rung | Icon | Server emoji name it looks for |
+| --- | --- | --- |
+| Co-Owner | 💎 | `coowner`, `co_owner` |
+| Owner | 👑 | `owner`, `crown` |
+| Trial | 🌱 | `trial`, `seedling` |
+| Senior | 🎯 | `senior`, `target` |
+| Head | ⚔️ | `head`, `swords` |
+| Admin | 🛡️ | `admin`, `shield` |
+| Moderator | 🔰 | `mod`, `moderator` |
+| Helper | 🤝 | `helper`, `handshake` |
+| Staff | ⭐ | `staff`, `star` |
+
+Discord role icons accept a unicode emoji or an uploaded image — a custom emoji cannot be picked as one. So when your server has emoji art whose name matches the table, the bot downloads that emoji's PNG and sets it as the role icon; otherwise it sets the plain emoji. Upload art named `admin`, `mod` and so on, run `!roleicons` again, and the real art takes over. Icons are only applied after you press **Apply icons** on the preview, and roles at or above the bot's own role are listed instead of being attempted.
 
 **Pinging a restyled role.** Small-caps letters are different Unicode characters, so typing `@staff` will not find `ꜱᴛᴀꜰꜰ` in the mention menu. There are two ways around it:
 

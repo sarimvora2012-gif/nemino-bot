@@ -24,6 +24,7 @@ const honeypot = require('./lib/honeypot');
 const loa = require('./lib/loa');
 const membercount = require('./lib/membercount');
 const rolefont = require('./lib/rolefont');
+const roleicons = require('./lib/roleicons');
 const roleping = require('./lib/roleping');
 const spawnerBoard = require('./lib/spawners');
 const staffguide = require('./lib/staffguide');
@@ -61,6 +62,7 @@ const componentModules = {
   suggestion: () => modules.suggestion,
   loa: () => loa,
   spawner: () => spawnerBoard,
+  roleicons: () => roleicons,
 };
 
 function getComponentModule(customId) {
@@ -172,6 +174,9 @@ client.on(Events.MessageCreate, (message) => {
   roleping
     .handleMessage(message, context)
     .catch((err) => console.error('[roleping] Message handler failed:', err));
+  roleicons
+    .handleMessage(message, context)
+    .catch((err) => console.error('[roleicons] Message handler failed:', err));
   automod
     .handleMessage(message, context)
     .catch((err) => console.error('[automod] Message handler failed:', err));

@@ -187,6 +187,7 @@ async function execute(interaction, { client }) {
           '`!stafffont [@role]` — rename the staff roles into small caps (admin only)',
           '`!stafffont readable` — keeps `ꜱᴛᴀꜰꜰ (Staff)` so typing `@staff` still works',
           '`!pingrole staff` / `!pr staff` — ping a fancy-named role with normal letters (staff)',
+          '`!roleicons` — preview and apply a staff role icon per rank (admin only)',
           '',
           `-# discord.js ${djsVersion}`,
         ].join('\n'),
