@@ -1578,6 +1578,38 @@ test('the leaderboard orders by XP and rank cards show progress', () => {
   assert.ok(!top.includes('<@c>'), 'members without XP are hidden');
 });
 
+test('only the owner and co-owner can set XP', () => {
+  const { canSetXp } = require('../src/commands/level');
+  const { toSmallCaps } = require('../src/lib/smallcaps');
+  const guild = { id: 'g', ownerId: 'nemino' };
+  const member = (id, roles = [], permissions = 0n) => ({
+    id,
+    permissions,
+    roles: {
+      cache: {
+        has: (id) => roles.some((role) => role.id === id),
+        some: (predicate) => roles.some(predicate),
+      },
+    },
+  });
+
+  assert.equal(canSetXp(member('nemino'), guild), true, 'the server owner always can');
+  assert.equal(
+    canSetXp(member('co', [{ id: 'co', name: `💎 ${toSmallCaps('Co-Owner')}` }]), guild),
+    true,
+    'a small-capped co-owner role still counts',
+  );
+  assert.equal(canSetXp(member('co2', [{ id: 'co2', name: 'Co Owner' }]), guild), true);
+  assert.equal(
+    canSetXp(member('admin', [{ id: 'a', name: 'Admin' }], 8n), guild),
+    false,
+    'Manage Server is not enough anymore',
+  );
+  assert.equal(canSetXp(member('mod', [{ id: 'm', name: 'Moderator' }]), guild), false);
+  assert.equal(canSetXp(member('helper'), { id: 'g', ownerId: 'nemino' }), false, 'no roles means no access');
+  assert.equal(canSetXp(null, guild), false, 'no member is refused');
+});
+
 test('slash commands only re-register when they actually changed', () => {
   const { canonical, diffCommands } = require('../src/lib/commandsync');
   const local = [

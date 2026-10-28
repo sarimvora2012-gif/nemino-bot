@@ -7,7 +7,25 @@ const {
   MessageFlags,
 } = require('discord.js');
 const { embed, successEmbed, errorEmbed, COLORS } = require('../lib/helpers');
+const { fontKey } = require('../lib/smallcaps');
 const levels = require('../lib/levels');
+
+// `Co-Owner`, `CO OWNER` and a small-capped `💎 ᴄᴏ-ᴏᴡɴᴇʀ` all share a key, so
+// the check still works after `!stafffont` has restyled the role.
+const CO_OWNER_KEYS = new Set(
+  ['co-owner', 'co owner', 'coowner', 'co_owner', 'vice owner'].map(fontKey),
+);
+
+function isCoOwnerRole(role, guild) {
+  return Boolean(role) && role.id !== guild.id && CO_OWNER_KEYS.has(fontKey(role.name));
+}
+
+/** Only the server owner (Nemino) and co-owner roles may hand out XP. */
+function canSetXp(member, guild) {
+  if (!member) return false;
+  if (guild.ownerId === member.id) return true;
+  return Boolean(member.roles?.cache?.some((role) => isCoOwnerRole(role, guild)));
+}
 
 const data = [
   new SlashCommandBuilder()
@@ -59,7 +77,7 @@ const data = [
     .addSubcommand((sub) =>
       sub
         .setName('setxp')
-        .setDescription('Set a member’s total XP (Manage Server)')
+        .setDescription('Set a member’s total XP (owner and co-owner only)')
         .addUserOption((opt) => opt.setName('user').setDescription('Member').setRequired(true))
         .addIntegerOption((opt) =>
           opt
@@ -172,9 +190,14 @@ async function execute(interaction, { store }) {
   }
 
   if (sub === 'setxp') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    if (!canSetXp(interaction.member, guild)) {
       await interaction.reply({
-        embeds: [errorEmbed('You need **Manage Server** to set XP.', 'Missing permissions')],
+        embeds: [
+          errorEmbed(
+            'Only the **owner** and **co-owner** can set XP.',
+            'Missing permissions',
+          ),
+        ],
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -224,4 +247,4 @@ async function execute(interaction, { store }) {
   });
 }
 
-module.exports = { data, execute };
+module.exports = { data, execute, canSetXp, isCoOwnerRole };
