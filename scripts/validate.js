@@ -2117,6 +2117,52 @@ test('env loader accepts .env, wispbyte.env and env', () => {
   assert.deepEqual(ENV_FILES, ['.env', 'wispbyte.env', 'env']);
 });
 
+test('startup names the exact environment problem', () => {
+  const env = require('../src/lib/env');
+  const saved = {
+    DISCORD_TOKEN: process.env.DISCORD_TOKEN,
+    CLIENT_ID: process.env.CLIENT_ID,
+    GUILD_ID: process.env.GUILD_ID,
+  };
+  const token = `${'A'.repeat(24)}.${'B'.repeat(6)}.${'C'.repeat(28)}`;
+
+  try {
+    delete process.env.DISCORD_TOKEN;
+    process.env.CLIENT_ID = '123456789012345678';
+    delete process.env.GUILD_ID;
+
+    let audit = env.auditEnv();
+    assert.equal(audit.fatal, true, 'a missing token is fatal');
+    assert.match(audit.lines.join('\n'), /DISCORD_TOKEN missing/);
+    assert.equal(audit.guildId, null, 'an absent GUILD_ID is not an error');
+
+    process.env.DISCORD_TOKEN = `"${token}"`;
+    audit = env.auditEnv();
+    assert.equal(audit.fatal, false, 'quotes are stripped instead of crashing');
+    assert.equal(audit.token, token);
+    assert.match(audit.lines.join('\n'), /quotes/);
+
+    process.env.GUILD_ID = 'main server';
+    audit = env.auditEnv();
+    assert.equal(audit.fatal, false);
+    assert.equal(audit.guildId, null, 'a bad GUILD_ID is ignored, not fatal');
+    assert.match(audit.lines.join('\n'), /not a server ID/);
+
+    process.env.GUILD_ID = '1527920833404866759';
+    assert.equal(env.auditEnv().guildId, '1527920833404866759');
+
+    process.env.DISCORD_TOKEN = 'not-a-token';
+    audit = env.auditEnv();
+    assert.equal(audit.fatal, true);
+    assert.match(audit.lines.join('\n'), /does not look like a bot token/);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test('ticket channels are named after the member, safely', () => {
   const { channelSlug, ticketLabel, categoryKey } = require(path.join(
     root,

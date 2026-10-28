@@ -8,6 +8,16 @@ const path = require('node:path');
 // `wispbyte.env` and `env` are all accepted.
 const env = require('./lib/env');
 env.loadEnv();
+
+// Check the variables before the rest of the bot loads: a missing token, a
+// quoted value or a bad GUILD_ID is explained here instead of surfacing as a
+// restart loop with no reason attached.
+const audit = env.auditEnv();
+console.log(audit.lines.join('\n'));
+if (audit.token) process.env.DISCORD_TOKEN = audit.token;
+if (audit.guildId) process.env.GUILD_ID = audit.guildId;
+else delete process.env.GUILD_ID;
+if (audit.fatal) process.exit(1);
 const {
   Client,
   GatewayIntentBits,
@@ -74,26 +84,7 @@ function getComponentModule(customId) {
   return componentModules[prefix]?.() ?? null;
 }
 
-const token = process.env.DISCORD_TOKEN?.trim();
-if (!token) {
-  console.error(
-    [
-      'DISCORD_TOKEN is missing.',
-      '',
-      'Create a file named .env (or wispbyte.env) next to package.json, containing:',
-      '  DISCORD_TOKEN=your-bot-token',
-      '  CLIENT_ID=your-application-id',
-      '  GUILD_ID=your-server-id',
-      '',
-      `Project folder: ${env.ROOT}`,
-      `Files there: ${env.rootListing()}`,
-      `Env-like files there: ${env.envCandidates() || 'none'}`,
-      '',
-      'Upload the file into the folder listed above, then restart the server.',
-    ].join('\n'),
-  );
-  process.exit(1);
-}
+const token = audit.token;
 
 loadCommands();
 v2.install();
