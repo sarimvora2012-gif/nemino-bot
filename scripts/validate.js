@@ -1,0 +1,1575 @@
+'use strict';
+
+/**
+ * Offline checks that do not need a Discord token:
+ *  - every command module loads and produces valid slash command JSON
+ *  - command names are unique
+ *  - component modules expose the handlers the router expects
+ *  - the JSON store persists and reads back correctly
+ *
+ * Run with: npm run check
+ */
+
+const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const root = path.join(__dirname, '..');
+const commandDir = path.join(root, 'src', 'commands');
+
+let failures = 0;
+function test(name, fn) {
+  try {
+    fn();
+    console.log(`  ✓ ${name}`);
+  } catch (err) {
+    failures += 1;
+    console.error(`  ✗ ${name}`);
+    console.error(`    ${err.message}`);
+  }
+}
+
+console.log('\nCommands');
+const modules = {};
+const names = new Set();
+const jsonByName = new Map();
+
+for (const file of fs.readdirSync(commandDir).filter((f) => f.endsWith('.js')).sort()) {
+  const key = path.basename(file, '.js');
+  const mod = require(path.join(commandDir, file));
+  modules[key] = mod;
+
+  test(`${file} exports data/execute`, () => {
+    assert.ok(Array.isArray(mod.data) && mod.data.length > 0, 'data must be a non-empty array');
+    assert.equal(typeof mod.execute, 'function', 'execute must be a function');
+  });
+
+  for (const builder of mod.data) {
+    const json = builder.toJSON();
+    test(`/${json.name} has valid JSON`, () => {
+      assert.ok(json.name && /^[\w-]{1,32}$/.test(json.name), 'invalid command name');
+      assert.ok(typeof json.description === 'string' && json.description.length > 0, 'missing description');
+      assert.ok(json.description.length <= 100, 'description too long');
+      assert.ok(!names.has(json.name), 'duplicate command name');
+    });
+    names.add(json.name);
+    jsonByName.set(json.name, json);
+  }
+}
+
+console.log('\nComponent routing');
+test('ticket module handles buttons and modals', () => {
+  assert.equal(typeof modules.ticket.handleButton, 'function');
+  assert.equal(typeof modules.ticket.handleModal, 'function');
+});
+test('application module handles buttons, modals and DMs', () => {
+  assert.equal(typeof modules.application.handleButton, 'function');
+  assert.equal(typeof modules.application.handleModal, 'function');
+  assert.equal(typeof modules.application.handleDirectMessage, 'function');
+});
+test('application review messages offer an Open ticket button', () => {
+  const [row] = modules.application.reviewComponents('A-0001');
+  const buttons = row.toJSON().components;
+  assert.ok(
+    buttons.some((button) => button.custom_id === 'apply:ticket:A-0001'),
+    'review row should include apply:ticket',
+  );
+  const [finalRow] = modules.application.reviewComponents('A-0001', { pending: false });
+  assert.deepEqual(
+    finalRow.toJSON().components.map((button) => button.custom_id),
+    ['apply:ticket:A-0001'],
+  );
+});
+test('giveaway module handles buttons', () => {
+  assert.equal(typeof modules.giveaway.handleButton, 'function');
+});
+test('suggestion module handles buttons', () => {
+  assert.equal(typeof modules.suggestion.handleButton, 'function');
+  const row = modules.suggestion.voteRow({
+    id: 'SUG-0001',
+    upVotes: ['a'],
+    downVotes: [],
+  });
+  assert.deepEqual(
+    row.toJSON().components.map((button) => button.custom_id),
+    ['suggestion:up:SUG-0001', 'suggestion:down:SUG-0001'],
+  );
+});
+const loa = require('../src/lib/loa');
+const staffguide = require('../src/lib/staffguide');
+test('staff guide is categorized and covers staff commands', () => {
+  assert.equal(staffguide.PREFIX, '!staffguide');
+  assert.equal(typeof staffguide.handleMessage, 'function');
+  const guide = staffguide.guideEmbed({
+    guildId: '123',
+    applications: { reviewChannelId: '456' },
+  }).data;
+  assert.equal(guide.fields.length, 8);
+  const text = guide.fields.map((field) => `${field.name}\n${field.value}`).join('\n');
+  for (const command of [
+    '/ticket claim',
+    '/ticket close',
+    '/giveaway create',
+    '!strike list',
+    '/suggestion',
+  ]) {
+    assert.ok(text.includes(command), `guide should mention ${command}`);
+  }
+  for (const adminCommand of [
+    '/config',
+    '/application questions',
+    '/application toggle',
+    '/ticket panel',
+    '/activity',
+    '/promote',
+    '/demote',
+    '!strike @',
+    '!strike remove',
+    '/protect',
+    '/kick',
+  ]) {
+    assert.ok(!text.includes(adminCommand), `guide should not mention ${adminCommand}`);
+  }
+  assert.ok(!text.toLowerCase().includes('automod'), 'guide should not mention AutoMod');
+  assert.ok(guide.fields.every((field) => field.value.length <= 1024));
+  const total =
+    guide.title.length +
+    guide.description.length +
+    guide.fields.reduce((sum, field) => sum + field.name.length + field.value.length, 0);
+  assert.ok(total <= 6000, `guide is ${total} characters`);
+});
+test('LOA module handles the prefix, buttons and modals', () => {
+  assert.equal(typeof loa.handleMessage, 'function');
+  assert.equal(typeof loa.handleButton, 'function');
+  assert.equal(typeof loa.handleModal, 'function');
+  const [row] = loa.requestComponents({ id: 'L-0001', status: 'pending' });
+  assert.deepEqual(
+    row.toJSON().components.map((button) => button.custom_id),
+    ['loa:accept:L-0001', 'loa:deny:L-0001'],
+  );
+  const [finalRow] = loa.requestComponents({ id: 'L-0001', status: 'accepted' });
+  assert.ok(finalRow.toJSON().components.every((button) => button.disabled));
+});
+test('the rank ladder command is removed', () => {
+  assert.equal(jsonByName.has('ranks'), false);
+});
+test('promotion and demotion embeds target the staff movement channel', () => {
+  assert.equal(modules.staff.STAFF_MOVEMENT_CHANNEL_ID, '1528259332876275742');
+});
+test('promote and demote require a user and a role', () => {
+  for (const name of ['promote', 'demote']) {
+    const options = jsonByName.get(name).options;
+    const required = options.filter((option) => option.required).map((option) => option.name).sort();
+    assert.deepEqual(required, ['role', 'user'], `${name} should require user and role`);
+    const roleOption = options.find((option) => option.name === 'role');
+    assert.equal(roleOption.type, 8, `${name} role option should be a role picker`);
+    assert.ok(!options.some((option) => option.name === 'rank'), `${name} should not have a rank option`);
+  }
+  const demote = jsonByName.get('demote');
+  const currentRole = demote.options.find((option) => option.name === 'current_role');
+  assert.ok(currentRole, 'demote should offer current_role');
+  assert.equal(currentRole.type, 8);
+  assert.equal(currentRole.required, false);
+});
+
+console.log('\nOption shape');
+const strike = require('../src/lib/strike');
+test('strikes are a !strike prefix command, not a slash command', () => {
+  assert.equal(jsonByName.has('strike'), false, '/strike should be unregistered');
+  assert.equal(strike.PREFIX, '!strike');
+  assert.equal(strike.STRIKES_CHANNEL_ID, '1528258786165260358');
+  assert.equal(typeof strike.handleMessage, 'function');
+});
+test('!strike parses the issue, list and remove forms', () => {
+  const add = strike.parseStrikeCommand('!strike <@123> leaked dms to a member');
+  assert.equal(add.action, 'add');
+  assert.equal(add.reason, 'leaked dms to a member');
+  const list = strike.parseStrikeCommand('!strike list <@123>');
+  assert.equal(list.action, 'list');
+  assert.deepEqual(list.words, []);
+  const remove = strike.parseStrikeCommand('!strike remove <@123> s-3 appeal accepted');
+  assert.equal(remove.action, 'remove');
+  assert.deepEqual(remove.words, ['s-3', 'appeal', 'accepted']);
+  assert.equal(strike.parseStrikeCommand('!strikes <@123> hi'), null);
+});
+test('!strikeremove parses the member and reason', () => {
+  const parsed = strike.parseStrikeCommand('!strikeremove <@123> appeal accepted');
+  assert.equal(parsed.action, 'remove-latest');
+  assert.equal(parsed.reason, 'appeal accepted');
+  assert.equal(strike.REMOVE_PREFIX, '!strikeremove');
+  assert.equal(strike.parseStrikeCommand('!strikeremove <@123>').reason, '');
+});
+const honeypot = require('../src/lib/honeypot');
+test('!honeypot parses setup, invite and off', () => {
+  assert.equal(honeypot.PREFIX, '!honeypot');
+  assert.deepEqual(honeypot.parseHoneypotCommand('!honeypot'), { action: 'setup', invite: null });
+  assert.deepEqual(honeypot.parseHoneypotCommand('!honeypot off'), { action: 'off' });
+  assert.deepEqual(honeypot.parseHoneypotCommand('!honeypot https://discord.gg/abc123'), {
+    action: 'setup',
+    invite: 'https://discord.gg/abc123',
+  });
+  assert.equal(honeypot.parseHoneypotCommand('!honeypots'), null);
+});
+test('honeypot panel tells members not to talk there', () => {
+  const card = honeypot.panelCard();
+  const text = card.components[0]
+    .toJSON()
+    .components.map((component) => component.content ?? '')
+    .join('\n');
+  assert.ok(text.includes('DO NOT TALK IN HERE'));
+  assert.ok(/kicks you from the server/i.test(text));
+  assert.ok(/DMs you an invite/i.test(text));
+});
+const steal = require('../src/lib/steal');
+test('!steal reads custom emojis, animated emojis and CDN links', () => {
+  assert.equal(steal.PREFIX, '!steal');
+  assert.equal(steal.SHOW_MS, 3000, 'the confirmation stays for 3 seconds');
+  assert.deepEqual(steal.parseStealCommand('!steal <:cat:123456789012345678>'), {
+    action: 'steal',
+    emoji: { animated: false, name: 'cat', id: '123456789012345678' },
+  });
+  assert.deepEqual(steal.parseStealCommand('!steal <a:party:987654321098765432>'), {
+    action: 'steal',
+    emoji: { animated: true, name: 'party', id: '987654321098765432' },
+  });
+  assert.equal(
+    steal.parseStealCommand('!steal https://cdn.discordapp.com/emojis/123456789012345678.gif').emoji
+      .animated,
+    true,
+  );
+  assert.equal(steal.parseStealCommand('!steal').action, 'usage');
+  assert.equal(steal.parseStealCommand('!steal').empty, true);
+  assert.equal(steal.parseStealCommand('!steal 😀').action, 'usage', 'standard emojis cannot be stolen');
+  assert.equal(steal.parseStealCommand('!stealing <:cat:123456789012345678>'), null);
+  assert.equal(steal.parseStealCommand('hello'), null);
+});
+test('stolen emoji names are valid and unique', () => {
+  assert.equal(steal.safeName('Cool Cat!'), 'Cool_Cat');
+  assert.equal(steal.safeName('a'), 'a_');
+  assert.equal(steal.safeName(''), 'stolen');
+  assert.equal(steal.safeName('x'.repeat(60)).length, 32);
+  assert.equal(steal.uniqueName('cat', new Set(['cat'])), 'cat_2');
+  assert.equal(steal.uniqueName('cat', new Set(['cat', 'cat_2'])), 'cat_3');
+  assert.equal(steal.uniqueName('cat', new Set(['dog'])), 'cat');
+  assert.ok(steal.uniqueName('y'.repeat(32), new Set(['y'.repeat(32)])).length <= 32);
+});
+test('strike IDs are normalised', () => {
+  assert.equal(strike.normalizeStrikeId('S-0007'), 'S-0007');
+  assert.equal(strike.normalizeStrikeId('7'), 'S-0007');
+  assert.equal(strike.normalizeStrikeId('s-12'), 'S-0012');
+  assert.equal(strike.normalizeStrikeId('oops'), null);
+});
+test('/ticket has all subcommands', () => {
+  const names = jsonByName.get('ticket').options.map((option) => option.name).sort();
+  assert.deepEqual(names, ['add', 'claim', 'close', 'panel', 'remove']);
+});
+test('/application has panel, toggle and a questions group', () => {
+  const app = jsonByName.get('application');
+  const subs = app.options.filter((option) => option.type === 1).map((option) => option.name).sort();
+  const groups = app.options.filter((option) => option.type === 2).map((option) => option.name);
+  assert.deepEqual(subs, ['panel', 'toggle']);
+  assert.deepEqual(groups, ['questions']);
+  const questions = app.options.find((option) => option.type === 2);
+  assert.deepEqual(
+    questions.options.map((option) => option.name).sort(),
+    ['add', 'list', 'remove'],
+  );
+});
+test('/activity has start, end, status and auto', () => {
+  const names = jsonByName.get('activity').options.map((option) => option.name).sort();
+  assert.deepEqual(names, ['auto', 'end', 'start', 'status']);
+});
+test('/giveaway create requires prize, duration and claimtime', () => {
+  const giveaway = jsonByName.get('giveaway');
+  const create = giveaway.options.find((option) => option.name === 'create');
+  const required = create.options
+    .filter((option) => option.required)
+    .map((option) => option.name)
+    .sort();
+  assert.deepEqual(required, ['claimtime', 'duration', 'prize']);
+});
+test('admin-only commands declare Manage Server defaults', () => {
+  for (const name of ['activity', 'promote', 'demote', 'protect']) {
+    assert.equal(jsonByName.get(name).default_member_permissions, '32', name);
+  }
+});
+test('/kick requires Kick Members and has a user and reason', () => {
+  const kick = jsonByName.get('kick');
+  assert.equal(kick.default_member_permissions, '2');
+  const names = kick.options.map((option) => option.name).sort();
+  assert.deepEqual(names, ['reason', 'user']);
+});
+test('/suggestion requires the suggestion text', () => {
+  const suggestion = jsonByName.get('suggestion');
+  assert.equal(suggestion.options.length, 1);
+  assert.equal(suggestion.options[0].name, 'suggestion');
+  assert.equal(suggestion.options[0].required, true);
+});
+
+console.log('\nAutomod');
+const automod = require('../src/lib/automod');
+test('normal conversation is not flagged', () => {
+  const result = automod.analyze({ content: 'good morning everyone, how are you?' });
+  assert.equal(result.flagged, false);
+});
+test('free Nitro scam messages are high severity', () => {
+  const result = automod.analyze({ content: 'free nitro! claim it at https://example.com/claim' });
+  assert.equal(result.flagged, true);
+  assert.equal(result.severity, 'high');
+  assert.ok(result.reasons.some((reason) => reason.includes('Nitro')));
+});
+test('invite links are blocked, including obfuscated ones', () => {
+  assert.equal(automod.analyze({ content: 'join https://discord.gg/abc123' }).severity, 'high');
+  assert.equal(automod.analyze({ content: 'join discord dot gg/abc123' }).severity, 'high');
+});
+test('unknown links from members are blocked', () => {
+  const result = automod.analyze({ content: 'see https://example.com/page' });
+  assert.equal(result.flagged, true);
+  assert.equal(result.severity, 'medium');
+});
+test('trusted media links are allowed', () => {
+  const result = automod.analyze({ content: 'watch https://www.youtube.com/watch?v=abc' });
+  assert.equal(result.flagged, false);
+});
+test('GIF hosts such as klipy are not suspicious', () => {
+  for (const content of [
+    'https://klipy.com/gifs/funny-cat',
+    'https://www.klipy.com/gifs/dancing-robot-123',
+    'look at this https://klipy.com/view/abc',
+  ]) {
+    assert.equal(automod.analyze({ content }).flagged, false, content);
+  }
+  assert.ok(automod.ALLOWED_DOMAINS.has('klipy.com'));
+});
+test('only link reasons trigger the high staff alert', () => {
+  assert.equal(automod.isSuspiciousLinkReason('unapproved link (evil.example)'), true);
+  assert.equal(automod.isSuspiciousLinkReason('shortened link (bit.ly)'), true);
+  assert.equal(automod.isSuspiciousLinkReason('server invite link'), true);
+  assert.equal(automod.isSuspiciousLinkReason('message flood (20 messages in 10s)'), false);
+  assert.equal(automod.isSuspiciousLinkReason('dangerous attachment (.exe)'), false);
+});
+test('the suspicious link alert pings the high staff role', () => {
+  const sent = [];
+  const channel = { isTextBased: () => true, send: async (payload) => sent.push(payload) };
+  const guild = { channels: { cache: new Map([['log-1', channel]]) } };
+  const message = {
+    id: 'm1',
+    guild,
+    author: { tag: 'scammer#0001', toString: () => 'scammer#0001' },
+    channel: { toString: () => '#general' },
+    content: 'free nitro https://evil.example/claim',
+  };
+  automod.sendLinkAlert(
+    message,
+    { logChannelId: 'log-1', automodAlertRoleId: 'role-high', staffRoleId: 'role-staff' },
+    {
+      linkReasons: ['unapproved link (evil.example)'],
+      links: [{ raw: 'https://evil.example/claim' }],
+      action: 'message deleted',
+    },
+  );
+  assert.equal(sent.length, 1);
+  assert.ok(sent[0].content.startsWith('<@&role-high>'), 'the high staff role is pinged');
+  assert.deepEqual(sent[0].allowedMentions, { parse: [], roles: ['role-high'] });
+  const links = sent[0].embeds[0].toJSON().fields.find((field) => field.name.includes('Links'));
+  assert.ok(links.value.includes('`https://evil.example/claim`'), 'links are not clickable');
+});
+test('staff may post unknown links but not scam text', () => {
+  assert.equal(automod.analyze({ content: 'https://example.com', isStaff: true }).flagged, false);
+  assert.equal(
+    automod.analyze({ content: 'free nitro https://example.com', isStaff: true }).severity,
+    'high',
+  );
+});
+test('casual chatting is not treated as spam', () => {
+  const limits = automod.SPAM_LIMITS;
+  assert.ok(limits.BURST_LIMIT >= 10, 'a flood has to be sustained');
+  assert.ok(limits.BURST_WINDOW_MS >= 10_000, 'the burst window is a little longer');
+  assert.ok(limits.DUPLICATE_LIMIT >= 5, 'repeating a message a few times is fine');
+  assert.ok(limits.DUPLICATE_WINDOW_MS >= 60_000, 'repeats are measured over a minute');
+  assert.equal(limits.SPAM_ESCALATION_LIMIT, 2, 'the first spam flag only removes the message');
+  assert.equal(limits.SPAM_ESCALATED_TIMEOUT_MS, 10 * 60 * 1000);
+});
+
+test('admins bypass automod', () => {
+  const result = automod.analyze({ content: 'free nitro https://discord.gg/abc', isAdmin: true });
+  assert.equal(result.flagged, false);
+});
+test('dangerous attachments and mass mentions are blocked', () => {
+  assert.equal(
+    automod.analyze({ content: 'download this', attachmentNames: ['virus.exe'] }).severity,
+    'high',
+  );
+  assert.equal(automod.analyze({ content: 'hello', mentionCount: 8 }).severity, 'high');
+});
+test('advertising with a link is blocked', () => {
+  const result = automod.analyze({ content: 'join my server https://youtube.com/watch?v=1' });
+  assert.equal(result.flagged, true);
+  assert.ok(result.reasons.some((reason) => reason.startsWith('advertising')));
+});
+test('advertising is allowed in the market channels', () => {
+  assert.ok(automod.MARKET_CHANNEL_IDS.has('1527957956933582969'));
+  assert.ok(automod.MARKET_CHANNEL_IDS.has('1527956094964600843'));
+  assert.equal(automod.isMarketChannel({ id: '1527957956933582969' }), true);
+  assert.equal(automod.isMarketChannel({ id: '1527956094964600843' }), true);
+  assert.equal(automod.isMarketChannel({ id: 'thread-1', parentId: '1527957956933582969' }), true);
+  assert.equal(automod.isMarketChannel({ id: 'other-channel' }), false);
+
+  const ad = 'check out my shop, selling cheap graphics https://example.com/shop';
+  assert.equal(automod.analyze({ content: ad }).flagged, true);
+  assert.equal(automod.analyze({ content: ad, allowAdvertising: true }).flagged, false);
+  assert.equal(
+    automod.analyze({ content: 'join my server https://discord.gg/abc123', allowAdvertising: true })
+      .flagged,
+    false,
+  );
+});
+test('market channels still block scams, dangerous files and mass mentions', () => {
+  assert.equal(
+    automod.analyze({ content: 'free nitro https://example.com', allowAdvertising: true }).severity,
+    'high',
+  );
+  assert.equal(
+    automod.analyze({ content: 'free stuff', attachmentNames: ['virus.exe'], allowAdvertising: true })
+      .severity,
+    'high',
+  );
+  assert.equal(
+    automod.analyze({ content: 'look at this', mentionCount: 8, allowAdvertising: true }).severity,
+    'high',
+  );
+});
+
+console.log('\nKick protection');
+const { PermissionFlagsBits } = require('discord.js');
+const protection = require('../src/lib/protection');
+function fakeMember({ id, admin = false, canKick = true, position = 1, protectedRoleId = null }) {
+  return {
+    id,
+    permissions: {
+      has: (flag) =>
+        flag === PermissionFlagsBits.ManageGuild
+          ? admin
+          : flag === PermissionFlagsBits.KickMembers
+            ? canKick
+            : false,
+    },
+    roles: {
+      cache: { has: (roleId) => roleId === protectedRoleId },
+      highest: { position },
+    },
+  };
+}
+test('non-admin staff cannot kick a protected member', () => {
+  const guild = { ownerId: 'owner' };
+  const actor = fakeMember({ id: 'staff', position: 5 });
+  const target = fakeMember({ id: 'target', position: 6, protectedRoleId: 'protect-role' });
+  const bot = fakeMember({ id: 'bot', position: 10 });
+  const result = protection.evaluateKick({
+    actor,
+    target,
+    bot,
+    guild,
+    protectionRoleId: 'protect-role',
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.protected, true);
+  assert.match(result.message, /kick protection/i);
+});
+test('admins can kick a protected member', () => {
+  const guild = { ownerId: 'owner' };
+  const actor = fakeMember({ id: 'admin', admin: true, position: 2 });
+  const target = fakeMember({ id: 'target', position: 6, protectedRoleId: 'protect-role' });
+  const bot = fakeMember({ id: 'bot', position: 10 });
+  const result = protection.evaluateKick({
+    actor,
+    target,
+    bot,
+    guild,
+    protectionRoleId: 'protect-role',
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.protected, true);
+});
+test('the server owner and the bot cannot be kicked', () => {
+  const guild = { ownerId: 'owner' };
+  const admin = fakeMember({ id: 'admin', admin: true, position: 2 });
+  const bot = fakeMember({ id: 'bot', position: 10 });
+  assert.equal(
+    protection.evaluateKick({
+      actor: admin,
+      target: fakeMember({ id: 'owner', position: 1 }),
+      bot,
+      guild,
+      protectionRoleId: null,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    protection.evaluateKick({
+      actor: admin,
+      target: fakeMember({ id: 'bot', position: 1 }),
+      bot,
+      guild,
+      protectionRoleId: null,
+    }).ok,
+    false,
+  );
+});
+test('a bot role below the target cannot kick', () => {
+  const guild = { ownerId: 'owner' };
+  const actor = fakeMember({ id: 'admin', admin: true, position: 12 });
+  const target = fakeMember({ id: 'target', position: 11 });
+  const bot = fakeMember({ id: 'bot', position: 10 });
+  assert.equal(
+    protection.evaluateKick({ actor, target, bot, guild, protectionRoleId: null }).ok,
+    false,
+  );
+});
+test('staff without Kick Members cannot use /kick', () => {
+  const guild = { ownerId: 'owner' };
+  const actor = fakeMember({ id: 'staff', canKick: false, position: 5 });
+  const target = fakeMember({ id: 'target', position: 2 });
+  const bot = fakeMember({ id: 'bot', position: 10 });
+  assert.equal(
+    protection.evaluateKick({ actor, target, bot, guild, protectionRoleId: null }).ok,
+    false,
+  );
+});
+
+console.log('\nText helpers');
+const { embed, EMBED_SIGNATURE } = require('../src/lib/helpers');
+const { toSmallCaps } = require('../src/lib/smallcaps');
+const {
+  MessageFlags,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  AttachmentBuilder,
+} = require('discord.js');
+const v2 = require('../src/lib/v2');
+test('every embed carries the seraphum signature', () => {
+  assert.equal(EMBED_SIGNATURE, 'made by seraphum');
+  assert.equal(embed({ title: 'test' }).data.footer.text, EMBED_SIGNATURE);
+  assert.equal(
+    embed({ title: 'test', footer: 'Existing footer' }).data.footer.text,
+    `Existing footer · ${EMBED_SIGNATURE}`,
+  );
+  assert.equal(
+    embed({ title: 'test', footer: EMBED_SIGNATURE }).data.footer.text,
+    EMBED_SIGNATURE,
+  );
+});
+test('small caps converts normal and fancy Unicode names', () => {
+  assert.equal(toSmallCaps('ticket'), 'ᴛɪᴄᴋᴇᴛ');
+  assert.equal(toSmallCaps('🚷𝖲𝖳𝖠𝖥𝖥-𝖱𝖴𝖫𝖤𝖲'), '🚷ꜱᴛᴀꜰꜰ-ʀᴜʟᴇꜱ');
+  assert.equal(toSmallCaps('General-Tickets-123'), 'ɢᴇɴᴇʀᴀʟ-ᴛɪᴄᴋᴇᴛꜱ-123');
+});
+test('small caps respects Discord channel name limits', () => {
+  assert.equal([...toSmallCaps('a'.repeat(150))].length, 100);
+});
+
+console.log('\nComponents V2');
+test('classic embeds convert to a V2 container', () => {
+  const payload = v2.convertPayload({
+    embeds: [
+      embed({
+        title: 'V2 test',
+        description: 'Converted card',
+        fields: [{ name: 'Field', value: 'Value' }],
+      }),
+    ],
+  });
+  assert.ok(payload.flags & MessageFlags.IsComponentsV2);
+  assert.equal(payload.embeds, undefined);
+  assert.equal(payload.content, undefined);
+  assert.ok(payload.components.some((component) => component.constructor.name === 'ContainerBuilder'));
+});
+test('content, buttons and files survive V2 conversion', () => {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('v2:test').setLabel('Test').setStyle(ButtonStyle.Primary),
+  );
+  const payload = v2.convertPayload({
+    content: 'Hello',
+    embeds: [embed({ title: 'V2 test' })],
+    components: [row],
+    files: [new AttachmentBuilder(Buffer.from('test'), { name: 'test.txt' })],
+  });
+  const types = payload.components.map((component) => component.constructor.name);
+  assert.ok(types.includes('TextDisplayBuilder'));
+  assert.ok(types.includes('ActionRowBuilder'));
+  assert.ok(types.includes('FileBuilder'));
+});
+test('V2 text stays under the 4000 character limit', () => {
+  const payload = v2.convertPayload({
+    embeds: [
+      embed({
+        title: 'Long card',
+        description: 'A'.repeat(3000),
+        fields: [{ name: 'Long field', value: 'B'.repeat(900) }],
+      }),
+    ],
+  });
+  const texts = [];
+  const walk = (components) => {
+    for (const component of components) {
+      const data = component.data ?? component;
+      if (data.content) texts.push(data.content);
+      const children = component.components ?? data.components;
+      if (children) walk(children);
+    }
+  };
+  walk(payload.components);
+  assert.ok(texts.reduce((total, text) => total + text.length, 0) <= 4000);
+});
+test('plain text messages stay classic so mentions ping normally', () => {
+  const payload = { content: '<@123> an activity check has started' };
+  assert.equal(v2.convertPayload(payload), payload);
+  const reminder = { content: '⏰ <@123> we are still waiting on you !' };
+  assert.equal(v2.convertPayload(reminder), reminder);
+});
+test('already-V2 payloads are left alone', () => {
+  const payload = { components: [], flags: MessageFlags.IsComponentsV2 };
+  assert.equal(v2.convertPayload(payload), payload);
+});
+test('embed-only V2 cards do not ping mentions', () => {
+  const payload = v2.convertPayload({ embeds: [embed({ title: 'Card', description: '<@123>' })] });
+  assert.deepEqual(payload.allowedMentions, { parse: [] });
+  const withContent = v2.convertPayload({
+    content: '<@123> hello',
+    embeds: [embed({ title: 'Card' })],
+  });
+  assert.equal(withContent.allowedMentions, undefined);
+});
+test('classic embed messages are detected for safe editing', () => {
+  assert.equal(
+    v2.isClassicEmbedMessage({ embeds: [{}], flags: { has: () => false } }),
+    true,
+  );
+  assert.equal(
+    v2.isClassicEmbedMessage({ embeds: [{}], flags: { has: () => true } }),
+    false,
+  );
+  assert.equal(v2.isClassicEmbedMessage({ embeds: [], flags: { has: () => false } }), false);
+  assert.equal(v2.isV2Message({ flags: { has: () => true } }), true);
+  assert.equal(v2.isV2Message({ flags: { has: () => false } }), false);
+  assert.equal(v2.isV2Message(undefined), false);
+});
+test('inline embed fields collapse into compact lines', () => {
+  const payload = v2.convertPayload({
+    embeds: [
+      embed({
+        title: 'Stats',
+        fields: [
+          { name: 'Staff', value: '12', inline: true },
+          { name: 'Reacted', value: '8', inline: true },
+          { name: 'Reason', value: 'Good work' },
+        ],
+      }),
+    ],
+  });
+  const json = JSON.stringify(payload.components.map((component) => component.toJSON()));
+  assert.ok(json.includes('**Staff** · 12'));
+  assert.ok(json.includes('**Reacted** · 8'));
+  assert.ok(json.includes('**Reason**\\nGood work'));
+});
+
+console.log('\nActivity helpers');
+const activity = require('../src/lib/activity');
+test('duration parser handles minutes, hours and days', () => {
+  assert.equal(activity.parseDuration('30m'), 1800);
+  assert.equal(activity.parseDuration('12h'), 43200);
+  assert.equal(activity.parseDuration('3d'), 259200);
+  assert.equal(activity.formatDuration(172800), '2d');
+});
+test('duration parser rejects bad or tiny values', () => {
+  assert.throws(() => activity.parseDuration('24'));
+  assert.throws(() => activity.parseDuration('30s'));
+  assert.throws(() => activity.parseDuration('abc'));
+});
+test('giveaway timers accept seconds with no one-minute floor', () => {
+  assert.equal(activity.parseDuration('30s', { minSeconds: 1 }), 30);
+  assert.equal(activity.parseDuration('1s', { minSeconds: 1 }), 1);
+  assert.equal(activity.parseDuration('90s', { minSeconds: 1 }), 90);
+  assert.equal(activity.parseDuration('30m', { minSeconds: 1 }), 1800);
+  assert.throws(() => activity.parseDuration('0s', { minSeconds: 1 }));
+  assert.equal(activity.formatDuration(45), '45s');
+  assert.equal(activity.formatDuration(90), '1m');
+  assert.equal(activity.formatDuration(90, { seconds: true }), '1m 30s');
+  assert.equal(activity.formatDuration(172800), '2d');
+});
+const activityCardText = (payload) => {
+  const texts = [];
+  const visit = (components) => {
+    for (const component of components) {
+      const data = component.data ?? component;
+      if (data.content) texts.push(data.content);
+      const children = component.components ?? data.components;
+      if (children) visit(children);
+    }
+  };
+  visit(payload.components[0].components);
+  return texts.join('\n');
+};
+
+test('activity check builds a wide Components V2 card', () => {
+  const payload = activity.buildEmbed(
+    { iconURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png' },
+    {
+      requiredIds: ['a', 'b'],
+      loaIds: ['c'],
+      endsAt: new Date(Date.now() + 3_600_000).toISOString(),
+      durationSeconds: 3600,
+      startedBy: { tag: 'admin#0001' },
+      auto: false,
+    },
+    new Set(['a']),
+  );
+  assert.ok(payload.flags & MessageFlags.IsComponentsV2);
+  assert.equal(payload.embeds, undefined);
+  const container = payload.components[0];
+  assert.equal(container.constructor.name, 'ContainerBuilder');
+
+  const all = activityCardText(payload);
+  assert.ok(all.includes('📊'));
+  assert.ok(all.includes('50%'));
+  assert.ok(all.includes('👥'));
+  assert.ok(all.includes('🌴'));
+  assert.ok(all.includes('made by seraphum'));
+  assert.ok(all.includes('left'));
+  assert.equal(all.match(/left/g).length, 1, 'time left should appear once');
+  assert.ok(!all.includes('Started by'), 'the card should not show who started it');
+  assert.ok(!all.includes('Not reacted'), 'the card should not show a not-reacted stat');
+  assert.ok(!/<t:\d+:/.test(all), 'the card should not show raw timestamps');
+  assert.ok(!all.includes('Not Reacted'));
+  assert.ok(container.components.some((c) => c.constructor.name === 'SectionBuilder'));
+  assert.ok(all.split('\n').length <= 9, `the card should stay wide, got ${all.split('\n').length} lines`);
+});
+test('remaining time reads as hours and days left', () => {
+  assert.equal(activity.timeLeft(null), '—');
+  assert.equal(activity.timeLeft(Date.now() + 125_000), '2m');
+  assert.equal(activity.timeLeft(Date.now() + 3_605_000), '1h');
+  assert.equal(activity.timeLeft(Date.now() + 2 * 86_400_000 + 5_000), '2d');
+  assert.equal(activity.timeLeft(Date.now() + 25 * 3_600_000 + 5_000), '1d 1h');
+  assert.equal(activity.timeLeft(Date.now() - 1_000), '0s');
+});
+test('starting a check pings the staff role in one message', () => {
+  assert.equal(typeof activity.pingStaffStarted, 'function');
+  assert.equal(typeof activity.pingStaff, 'function');
+  assert.equal(activity.staffMention('role-9', ['user-1', 'user-2']), '<@&role-9>');
+  assert.equal(activity.staffMention(null, ['user-1', 'user-2']), '<@user-1> <@user-2>');
+  const source = fs.readFileSync(path.join(root, 'src', 'lib', 'activity.js'), 'utf8');
+  assert.ok(source.includes('await pingStaffStarted(channel, check.requiredIds, settings.staffRoleId)'));
+  assert.ok(source.includes('await pingMissing(channel, missing, settings.staffRoleId)'));
+  assert.ok(source.includes('An activity check has started!'));
+  assert.ok(source.includes('we are still waiting on you !'));
+});
+
+test('check-ins are tracked from the gateway, not polled from Discord', () => {
+  const guildId = 'g1';
+  let saves = 0;
+  const check = {
+    messageId: 'm1',
+    channelId: 'c1',
+    requiredIds: ['u1', 'u2'],
+    loaIds: [],
+    reactedIds: [],
+    endsAt: new Date(Date.now() + 60_000).toISOString(),
+    durationSeconds: 300,
+  };
+  const ctx = {
+    store: {
+      data: { guilds: { [guildId]: { activity: { current: check } } } },
+      guild: (id) => ctx.store.data.guilds[id],
+      save: () => {
+        saves += 1;
+      },
+    },
+    client: { guilds: { cache: new Map() } },
+  };
+  const reaction = { message: { id: 'm1', guildId }, emoji: { name: '✅' } };
+
+  activity.handleReaction(ctx, reaction, { id: 'u1', bot: false }, 'add');
+  assert.deepEqual(check.reactedIds, ['u1'], 'the check-in is recorded immediately');
+  assert.equal(saves, 1, 'and persisted without a Discord round trip');
+
+  activity.handleReaction(ctx, reaction, { id: 'u1', bot: false }, 'remove');
+  assert.deepEqual(check.reactedIds, [], 'removing the reaction clears the check-in');
+
+  activity.handleReaction(ctx, reaction, { id: 'stranger', bot: false }, 'add');
+  assert.deepEqual(check.reactedIds, [], 'non-staff reactions are ignored');
+
+  activity.stopScheduler();
+});
+
+console.log('\nStore');
+const { Store } = require('../src/store');
+
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bot-store-'));
+const file = path.join(tmpDir, 'data.json');
+let store = new Store(file);
+
+test('defaults are created per guild', () => {
+  const guild = store.guild('123');
+  assert.equal(guild.kickProtectionRoleId, null);
+  assert.deepEqual(guild.protectedUsers, []);
+  assert.equal('ranks' in guild, false);
+  assert.equal(guild.applications.questions.length, 5);
+  assert.equal(guild.counters.ticket, 0);
+  assert.equal(guild.counters.giveaway, 0);
+  assert.equal(guild.counters.loa, 0);
+  assert.equal(guild.counters.suggestion, 0);
+  assert.equal(guild.activity.enabled, false);
+  assert.equal(guild.activity.loaRoleId, '1539905285789982781');
+  assert.deepEqual(guild.vouches, {});
+  assert.deepEqual(guild.vouchPanels, {});
+  assert.equal(guild.vouchChannelId, null);
+  assert.equal(guild.vouchAdminRoleId, null);
+  assert.deepEqual(guild.honeypot, { channelId: null, messageId: null, inviteUrl: null });
+});
+test('activity checks persist', () => {
+  const guild = store.guild('123');
+  guild.activity.enabled = true;
+  guild.activity.current = { messageId: 'm1', channelId: 'c1', endsAt: new Date().toISOString() };
+  store.save();
+  store = new Store(file);
+  const reloaded = store.guild('123');
+  assert.equal(reloaded.activity.enabled, true);
+  assert.equal(reloaded.activity.current.messageId, 'm1');
+});
+
+test('counters increment and persist', () => {
+  assert.equal(store.nextCounter('123', 'ticket'), 1);
+  assert.equal(store.nextCounter('123', 'ticket'), 2);
+  assert.equal(store.nextCounter('123', 'strike'), 1);
+  store = new Store(file);
+  assert.equal(store.guild('123').counters.ticket, 2);
+});
+
+test('tickets can be found, closed and removed', () => {
+  store.addTicket('chan-1', {
+    guildId: '123',
+    userId: 'user-1',
+    number: 1,
+    status: 'open',
+    createdAt: new Date().toISOString(),
+  });
+  assert.equal(store.openTicketFor('123', 'user-1'), 'chan-1');
+  const ticket = store.ticket('chan-1');
+  ticket.status = 'closed';
+  store.addTicket('chan-1', ticket);
+  assert.equal(store.openTicketFor('123', 'user-1'), null);
+  store.removeTicket('chan-1');
+  assert.equal(store.ticket('chan-1'), null);
+});
+
+test('strikes are stored and voided', () => {
+  store.addStrike('123', 'user-1', {
+    id: 'S-0001',
+    reason: 'test',
+    severity: 'Minor',
+    moderatorId: 'mod-1',
+    createdAt: new Date().toISOString(),
+    active: true,
+  });
+  assert.equal(store.strikes('123', 'user-1').length, 1);
+  store.updateStrike('123', 'user-1', 'S-0001', { active: false });
+  assert.equal(store.strikes('123', 'user-1')[0].active, false);
+
+  store = new Store(file);
+  assert.equal(store.strikes('123', 'user-1')[0].active, false);
+});
+
+test('applications are stored with pending lookup', () => {
+  store.addApplication({
+    id: 'A-0001',
+    guildId: '123',
+    userId: 'user-2',
+    username: 'user#0001',
+    answers: [{ question: 'Why?', answer: 'Because' }],
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  });
+  assert.equal(store.pendingApplicationFor('123', 'user-2').id, 'A-0001');
+  store.updateApplication('A-0001', { status: 'accepted' });
+  assert.equal(store.pendingApplicationFor('123', 'user-2'), null);
+});
+
+test('denied applications enforce a 2-week cooldown', () => {
+  const now = Date.now();
+  store.addApplication({
+    id: 'A-0002',
+    guildId: '123',
+    userId: 'user-3',
+    username: 'denied#0001',
+    answers: [],
+    status: 'denied',
+    createdAt: new Date(now).toISOString(),
+    reviewedAt: new Date(now).toISOString(),
+    reapplyAt: new Date(now + 14 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+  assert.equal(store.latestDeniedApplicationFor('123', 'user-3').id, 'A-0002');
+  const cooldown = modules.application.denialCooldown(store, '123', 'user-3');
+  assert.ok(cooldown, 'recent denial should block a new application');
+  assert.ok(cooldown.until > now);
+});
+
+test('application tickets are looked up by application', () => {
+  store.addTicket('chan-2', {
+    guildId: '123',
+    userId: 'user-3',
+    number: 2,
+    status: 'open',
+    applicationId: 'A-0002',
+  });
+  assert.equal(store.ticketForApplication('123', 'A-0002'), 'chan-2');
+  const ticket = store.ticket('chan-2');
+  ticket.status = 'closed';
+  store.addTicket('chan-2', ticket);
+  assert.equal(store.ticketForApplication('123', 'A-0002'), null);
+  store.removeTicket('chan-2');
+});
+
+test('LOA requests persist and only one can be pending', () => {
+  store.addLoaRequest({
+    id: 'L-0001',
+    guildId: '123',
+    userId: 'user-4',
+    username: 'loa#0001',
+    duration: '1 week',
+    reason: 'vacation',
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  });
+  assert.equal(store.pendingLoaRequestFor('123', 'user-4').id, 'L-0001');
+  store.updateLoaRequest('L-0001', { status: 'accepted' });
+  assert.equal(store.pendingLoaRequestFor('123', 'user-4'), null);
+  store = new Store(file);
+  assert.equal(store.loaRequest('L-0001').status, 'accepted');
+});
+
+test('suggestions persist with staff votes', () => {
+  store.addSuggestion({
+    id: 'SUG-0001',
+    guildId: '123',
+    authorId: 'user-5',
+    authorTag: 'member#0001',
+    content: 'Add a movie night',
+    upVotes: ['staff-1'],
+    downVotes: [],
+    status: 'open',
+    createdAt: new Date().toISOString(),
+  });
+  store.updateSuggestion('SUG-0001', { downVotes: ['staff-2'] });
+  store = new Store(file);
+  assert.deepEqual(store.suggestion('SUG-0001').upVotes, ['staff-1']);
+  assert.deepEqual(store.suggestion('SUG-0001').downVotes, ['staff-2']);
+  assert.equal(store.suggestionsForGuild('123').length, 1);
+});
+
+test('giveaways persist with entries and winners', () => {
+  store.addGiveaway({
+    id: 'G-0001',
+    guildId: '123',
+    channelId: 'chan-1',
+    messageId: 'msg-1',
+    hostId: 'host-1',
+    hostTag: 'host#0001',
+    prize: 'Nitro',
+    entries: ['user-1'],
+    status: 'ended',
+    winnerId: 'user-1',
+    claimSeconds: 3600,
+    endsAt: new Date().toISOString(),
+    claimEndsAt: new Date().toISOString(),
+  });
+  store = new Store(file);
+  const giveaway = store.giveaway('G-0001');
+  assert.equal(giveaway.prize, 'Nitro');
+  assert.deepEqual(giveaway.entries, ['user-1']);
+  assert.equal(store.giveawaysForGuild('123').length, 1);
+});
+const giveawayModule = require('../src/commands/giveaway');
+test('the winner message is one ping line plus the claim button', () => {
+  const payload = giveawayModule.endedPayload({
+    id: 'G-0001',
+    prize: 'Nitro',
+    winnerId: 'user-1',
+    entries: ['user-1', 'user-2'],
+    claimEndsAt: new Date(Date.now() + 3_600_000).toISOString(),
+  });
+  assert.equal(
+    payload.content,
+    '🎉 Congrats <@user-1>! You won **Nitro**. Press **Claim Prize** below.',
+  );
+  assert.equal(payload.components.length, 1, 'only the claim button row');
+  const button = payload.components[0].toJSON().components[0];
+  assert.equal(button.label, 'Claim Prize');
+  assert.notEqual(button.disabled, true);
+  assert.deepEqual(payload.allowedMentions.users, ['user-1']);
+
+  const claimed = giveawayModule.endedPayload({
+    id: 'G-0001',
+    prize: 'Nitro',
+    winnerId: 'user-1',
+    claimedAt: new Date().toISOString(),
+    ticketChannelId: 'chan-9',
+  });
+  assert.ok(claimed.content.includes('claimed the **Nitro** prize'));
+  assert.ok(claimed.content.includes('<#chan-9>'));
+  assert.equal(claimed.components[0].toJSON().components[0].disabled, true);
+
+  const empty = giveawayModule.endedPayload({ id: 'G-0002', prize: 'Nitro', winnerId: null, entries: [] });
+  assert.ok(empty.content.includes('no entries'));
+  assert.deepEqual(empty.components, []);
+});
+
+test('giveaways can draw several distinct winners', () => {
+  const winners = giveawayModule.drawWinners(['a', 'b', 'c', 'd'], 3);
+  assert.equal(new Set(winners).size, 3, 'winners are distinct');
+  assert.equal(giveawayModule.drawWinners(['a'], 5).length, 1, 'never more winners than entries');
+  assert.deepEqual(giveawayModule.drawWinners([], 2), []);
+  assert.equal(giveawayModule.drawWinners(['a', 'b'], 0).length, 1, 'at least one winner');
+});
+
+test('each winner claims their own prize and the button tracks the count', () => {
+  const now = new Date().toISOString();
+  const base = {
+    id: 'G-0003',
+    prize: 'Nitro',
+    winnerCount: 2,
+    winnerIds: ['user-1', 'user-2'],
+    entries: ['user-1', 'user-2'],
+    claimEndsAt: new Date(Date.now() + 60_000).toISOString(),
+  };
+
+  const open = giveawayModule.endedPayload({ ...base, claims: {} });
+  assert.ok(open.content.includes('<@user-1>') && open.content.includes('<@user-2>'));
+  assert.deepEqual(open.allowedMentions.users, ['user-1', 'user-2']);
+  assert.equal(open.components.length, 1, 'all winners share one message and one button row');
+  assert.equal(open.components[0].components.length, 1, 'exactly one claim button');
+  assert.equal(open.components[0].toJSON().components[0].label, 'Claim Prize');
+  assert.notEqual(open.components[0].toJSON().components[0].disabled, true);
+
+  const half = giveawayModule.endedPayload({
+    ...base,
+    claims: { 'user-1': { claimedAt: now, ticketChannelId: 'chan-1' } },
+  });
+  assert.ok(half.content.includes('Still waiting on: <@user-2>'));
+  assert.equal(half.components[0].components.length, 1, 'the same single button serves every winner');
+  assert.equal(half.components[0].toJSON().components[0].label, 'Claim Prize');
+  assert.notEqual(half.components[0].toJSON().components[0].disabled, true);
+  assert.deepEqual(giveawayModule.unclaimedWinners({ ...base, claims: { 'user-1': { claimedAt: now } } }), [
+    'user-2',
+  ]);
+
+  const done = giveawayModule.endedPayload({
+    ...base,
+    claims: {
+      'user-1': { claimedAt: now, ticketChannelId: 'chan-1' },
+      'user-2': { claimedAt: now, ticketChannelId: 'chan-2' },
+    },
+  });
+  assert.ok(done.content.includes('<#chan-1>') && done.content.includes('<#chan-2>'));
+  assert.equal(done.components[0].toJSON().components[0].disabled, true);
+  assert.equal(giveawayModule.unclaimedWinners({ ...base, claims: {} }).length, 2);
+});
+
+fs.rmSync(tmpDir, { recursive: true, force: true });
+
+console.log('\nVouches & timeouts');
+const vouch = require('../src/lib/vouch');
+const timeout = require('../src/lib/timeout');
+
+const fakeMessage = (content, member = null) => ({
+  content,
+  mentions: { members: { first: () => member } },
+});
+
+test('a :vouch line with a mention is detected', () => {
+  assert.equal(vouch.parseVouch(fakeMessage(':vouch <@1>', { id: '1' }))?.id, '1');
+  assert.equal(vouch.parseVouch(fakeMessage('vouch <@1>', { id: '1' }))?.id, '1');
+  assert.equal(vouch.parseVouch(fakeMessage(':vouch <@1>', { id: '1' }))?.id, '1');
+  assert.equal(
+    vouch.parseVouch(fakeMessage(':vouch <@1> extra words', { id: '1' }))?.id,
+    '1',
+    'anything after the mention is ignored',
+  );
+});
+test('ordinary chat is not mistaken for a vouch', () => {
+  assert.equal(vouch.parseVouch(fakeMessage('hello everyone', { id: '1' })), null);
+  assert.equal(vouch.parseVouch(fakeMessage('I vouch for this', { id: '1' })), null);
+  assert.equal(vouch.parseVouch(fakeMessage(':vouch nobody')), null);
+});
+test('vouch channels are detected by id or name', () => {
+  const channel = (name, id = `id-${name}`) => ({ name, id, isTextBased: () => true });
+  assert.equal(vouch.isVouchChannel(channel('💜ᴠᴏᴜᴄʜᴇꜱ'), { vouchChannelId: null }), true);
+  assert.equal(vouch.isVouchChannel(channel('staff-vouches'), { vouchChannelId: null }), true);
+  assert.equal(vouch.isVouchChannel(channel('general'), { vouchChannelId: '42' }), false);
+  assert.equal(
+    vouch.isVouchChannel(channel('general', '42'), { vouchChannelId: '42' }),
+    true,
+    'an explicitly configured channel always works',
+  );
+  assert.equal(
+    vouch.isVouchChannel(channel('general', '99'), { staffVouchChannelId: '99' }),
+    true,
+    'the staff vouch channel is configured separately',
+  );
+});
+test('nicknames follow the Name (count) template', () => {
+  assert.equal(vouch.withCount('Slash', 4), 'Slash (4)');
+  assert.equal(vouch.withCount('Slash (3)', 4), 'Slash (4)');
+  assert.equal(vouch.withCount('x'.repeat(40), 12).length, 32);
+});
+test('only owner and co-owner roles can add vouches', () => {
+  const member = (list, id = '2') => ({
+    id,
+    roles: {
+      cache: {
+        has: (roleId) => list.some((role) => role.id === roleId),
+        some: (predicate) => list.some(predicate),
+      },
+    },
+  });
+  assert.equal(
+    vouch.canManageVouches(member([]), { ownerId: '2' }, {}),
+    true,
+    'the server owner can always add vouches',
+  );
+  assert.equal(
+    vouch.canManageVouches(member([{ id: '9', name: '👑 Co-Owner' }]), { ownerId: '1' }, {}),
+    true,
+  );
+  assert.equal(
+    vouch.canManageVouches(member([{ id: '9', name: 'Moderator' }]), { ownerId: '1' }, {}),
+    false,
+  );
+  assert.equal(
+    vouch.canManageVouches(member([{ id: '7', name: 'Staff' }]), { ownerId: '1' }, { vouchAdminRoleId: '7' }),
+    true,
+    'a configured vouch admin role also works',
+  );
+});
+test('leaderboard orders the most vouched first', () => {
+  const entries = vouch.leaderboardEntries({ vouches: { a: 3, b: 9, c: 0, d: 1 } });
+  assert.deepEqual(entries.map((entry) => entry.id), ['b', 'a', 'd']);
+  assert.equal(vouch.leaderboardEntries({ vouches: { a: 1 } }, 5).length, 1);
+});
+test('timeout times accept minutes, hours, days and weeks', () => {
+  assert.equal(timeout.parseTimeoutTime('10'), 600_000);
+  assert.equal(timeout.parseTimeoutTime('10m'), 600_000);
+  assert.equal(timeout.parseTimeoutTime('2h'), 7_200_000);
+  assert.equal(timeout.parseTimeoutTime('1d'), 86_400_000);
+  assert.equal(timeout.parseTimeoutTime('29d'), null, 'Discord caps timeouts at 28 days');
+  assert.equal(timeout.parseTimeoutTime('30s'), null, 'the minimum is one minute');
+  assert.equal(timeout.parseTimeoutTime('soon'), null);
+});
+test('timeout durations are shown in a short form', () => {
+  assert.equal(timeout.formatTimeout(600_000), '10m');
+  assert.equal(timeout.formatTimeout(7_200_000), '2h');
+  assert.equal(timeout.formatTimeout(90_000_000), '1d 1h');
+});
+
+console.log('\nWelcome & member counter');
+const welcome = require('../src/lib/welcome');
+const membercount = require('../src/lib/membercount');
+
+function textOf(payload) {
+  const parts = [];
+  const walk = (node) => {
+    if (!node) return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (typeof node === 'object' && typeof node.toJSON === 'function') return walk(node.toJSON());
+    if (typeof node === 'object') {
+      if (typeof node.content === 'string') parts.push(node.content);
+      if (node.accessory && typeof node.accessory.media?.url === 'string') {
+        parts.push(node.accessory.media.url);
+      }
+      if (typeof node.media?.url === 'string') parts.push(node.media.url);
+      for (const value of Object.values(node)) {
+        if (value && typeof value === 'object') walk(value);
+      }
+    }
+  };
+  walk(payload.components);
+  return parts.join('\n');
+}
+
+const welcomeGuild = {
+  name: 'Nemino Nation',
+  memberCount: 747,
+  rulesChannel: { id: 'rules-1' },
+  channels: {
+    cache: {
+      get: (id) => (id === 'general-1' ? { id, isTextBased: () => true, name: '💬general' } : null),
+      find: (predicate) =>
+        [{ id: 'general-1', isTextBased: () => true, name: '💬general' }].find(predicate) ?? null,
+    },
+  },
+};
+
+const welcomeMember = {
+  id: 'u-1',
+  joinedAt: new Date('2026-10-25T12:00:00Z'),
+  user: {
+    id: 'u-1',
+    tag: 'newbie#0001',
+    createdAt: new Date('2024-01-02T00:00:00Z'),
+    displayAvatarURL: () => 'https://cdn.discordapp.com/avatars/u-1/a.png',
+    toString: () => '<@u-1>',
+  },
+};
+
+test('the welcome card is one wide container with the profile and join time', () => {
+  const payload = welcome.welcomeCard(welcomeMember, welcomeGuild, 747);
+  assert.ok(payload.flags & 32768, 'card should be Components V2');
+  assert.equal(payload.components.length, 1, 'one container keeps it wide instead of stacked');
+  assert.equal(payload.embeds, undefined, 'no legacy embed is used');
+  assert.equal(payload.content, undefined, 'V2 messages reject a content field');
+  const text = textOf(payload);
+  assert.ok(text.includes('<@u-1>'), 'mentions the new member');
+  assert.ok(text.includes('Member #') && text.includes('747'), 'shows the member number');
+  assert.ok(text.includes('Joined'), 'shows the join line');
+  assert.ok(text.includes('avatars/u-1/a.png'), 'uses their avatar');
+  assert.ok(!text.includes('newbie#0001'), 'no tag line');
+  assert.ok(!text.includes('Account age'), 'no account age line');
+  assert.ok(!text.includes('🆔'), 'no user id line');
+  assert.ok(text.includes('made by seraphum'), 'keeps the signature');
+  assert.ok(text.includes('WELCOME TO'), 'has a title');
+});
+
+test('the welcome channel resolves from settings first', () => {
+  const channel = (id) => ({ id, isTextBased: () => true, name: '👋ᴡᴇʟᴄᴏᴍᴇ' });
+  const guild = {
+    channels: {
+      cache: {
+        get: (id) => (id === 'chan-9' ? channel('chan-9') : null),
+        find: (predicate) => [channel('chan-7')].find(predicate) ?? null,
+      },
+    },
+  };
+  assert.equal(welcome.resolveWelcomeChannel(guild, { welcomeChannelId: 'chan-9' }).id, 'chan-9');
+  assert.equal(
+    welcome.resolveWelcomeChannel(guild, {}).id,
+    'chan-7',
+    'falls back to a #welcome-named channel',
+  );
+
+  const withDefault = {
+    channels: {
+      cache: {
+        get: (id) => (id === welcome.DEFAULT_WELCOME_CHANNEL_ID ? channel(id) : null),
+        find: () => null,
+      },
+    },
+  };
+  assert.equal(
+    welcome.resolveWelcomeChannel(withDefault, {}).id,
+    welcome.DEFAULT_WELCOME_CHANNEL_ID,
+    'uses the default welcome channel id',
+  );
+});
+
+test('the member counter name follows Members - (amount)', () => {
+  assert.equal(membercount.countChannelName('Members - {count}', 747), 'Members - 747');
+  assert.equal(membercount.countChannelName(undefined, 12), 'Members - 12');
+  assert.ok(membercount.countChannelName('Members - {count}', 747).length <= 100);
+});
+
+test('the member counter reads the guild member count', () => {
+  assert.equal(membercount.memberCount({ memberCount: 747 }), 747);
+  assert.equal(membercount.memberCount({ members: { cache: { size: 5 } } }), 5);
+  assert.equal(membercount.memberCount({}), 0);
+});
+
+console.log('\nSpawner prices & media');
+const spawners = require('../src/lib/spawners');
+const media = require('../src/commands/media');
+
+function collectButtons(node, out = []) {
+  if (!node) return out;
+  if (Array.isArray(node)) {
+    for (const child of node) collectButtons(child, out);
+    return out;
+  }
+  if (typeof node !== 'object') return out;
+  const json = typeof node.toJSON === 'function' ? node.toJSON() : node;
+  if (json.type === 2 && json.label) out.push(json);
+  for (const value of Object.values(json)) {
+    if (value && typeof value === 'object') collectButtons(value, out);
+  }
+  return out;
+}
+
+const noEmojiGuild = { id: 'g-1', emojis: { cache: { find: () => null } } };
+const emojiGuild = {
+  id: 'g-1',
+  emojis: {
+    cache: {
+      find: (predicate) =>
+        [
+          { id: '900', name: 'skeleton', animated: false },
+          { id: '901', name: 'fire', animated: true },
+        ].find(predicate) ?? null,
+    },
+  },
+};
+
+test('spawner types are listed in the requested order', () => {
+  assert.deepEqual(spawners.SPAWNER_TYPES.map((type) => type.label), [
+    'Skeleton',
+    'Creeper',
+    'Iron Golem',
+    'Zombified Piglin',
+    'Pig',
+    'Cow',
+  ]);
+  assert.equal(spawners.spawnerByKey('creeper').label, 'Creeper');
+  assert.equal(spawners.spawnerByKey('blaze'), null);
+});
+
+test('prices allow up to two decimals and letters are rejected', () => {
+  assert.equal(spawners.formatPrice(13), '13M');
+  assert.equal(spawners.formatPrice('22'), '22M');
+  assert.equal(spawners.formatPrice('13m'), null);
+  assert.equal(spawners.formatPrice(0), null);
+  assert.equal(spawners.formatPrice(12.5), '12.5M', 'one decimal');
+  assert.equal(spawners.formatPrice('0.75'), '0.75M', 'two decimals');
+  assert.equal(spawners.formatPrice(10.5), '10.5M', 'trailing zeros are trimmed');
+  assert.equal(spawners.formatPrice(12.755), null, 'three decimals are rejected');
+  assert.equal(spawners.validatePrice(12.755).ok, false);
+  assert.equal(spawners.validatePrice(12.75).ok, true);
+
+  const settings = { spawners: { buy: {}, sell: {} } };
+  assert.equal(spawners.applyPrice(settings, 'creeper', 'buy', 16), '16M');
+  assert.equal(settings.spawners.buy.creeper, 16);
+  assert.equal(spawners.applyPrice(settings, 'creeper', 'buy', 16.5), '16.5M');
+  assert.equal(settings.spawners.buy.creeper, 16.5, 'decimals are stored');
+  assert.equal(spawners.applyPrice(settings, 'creeper', 'buy', 0.25), '0.25M');
+  assert.equal(spawners.applyPrice(settings, 'creeper', 'buy', 1.234), null, 'too many decimals');
+  assert.equal(spawners.applyPrice(settings, 'creeper', 'buy', '1x'), null);
+  assert.equal(spawners.applyPrice(settings, 'creeper', 'buy', ''), null);
+  assert.equal(spawners.applyPrice(settings, 'blaze', 'buy', 5), null, 'unknown spawner');
+  assert.equal(spawners.applyPrice(settings, 'pig', 'hold', 5), null, 'unknown mode');
+});
+
+test('spawner emojis use the server custom emoji with a fallback', () => {
+  const skeleton = spawners.spawnerByKey('skeleton');
+  assert.equal(spawners.spawnerEmoji(noEmojiGuild, skeleton), '💀');
+  assert.equal(spawners.spawnerEmoji(emojiGuild, skeleton), '<:skeleton:900>');
+  assert.equal(spawners.titleEmoji(noEmojiGuild), '🔥');
+  assert.equal(spawners.titleEmoji(emojiGuild), '<a:fire:901>');
+});
+
+test('the board is one wide container with both sides, notes and buttons', () => {
+  const settings = {
+    spawners: { buy: { skeleton: 13, cow: 50 }, sell: { skeleton: 15 }, panelChannelId: null },
+  };
+  const payload = spawners.panelPayload(emojiGuild, settings);
+  assert.equal(payload.components.length, 1, 'one container keeps it wide');
+  assert.equal(payload.embeds, undefined, 'no legacy embed');
+  assert.equal(payload.content, undefined, 'V2 rejects a content field');
+  assert.deepEqual(payload.allowedMentions, { parse: [] });
+
+  const text = textOf(payload);
+  assert.ok(text.includes(toSmallCaps('Spawner Prices')), 'has the title');
+  assert.ok(text.includes('<a:fire:901>'), 'uses the custom fire emoji');
+  assert.ok(text.includes('<:skeleton:900>'), 'uses the custom spawner emoji');
+  assert.ok(
+    text.includes(toSmallCaps('buying')) && text.includes(toSmallCaps('selling')),
+    'both sides are shown',
+  );
+  assert.ok(text.includes('Skeleton') && text.includes('**13M** each'), 'shows the set price');
+  assert.ok(text.includes('**15M** each'), 'shows the selling price');
+  assert.ok(text.includes('Cow') && text.includes('**50M** each'), 'shows the second set price');
+  assert.ok(!text.includes('Creeper'), 'spawners without a price are hidden');
+  assert.ok(!text.includes('not set'), 'unset prices are not mentioned at all');
+  assert.ok(text.indexOf('Skeleton') < text.indexOf('Cow'), 'order follows the list');
+  assert.ok(text.includes('NOT'), 'prices are not negotiable');
+  assert.ok(/2 by 2/.test(text) && /8 spawner/.test(text), 'notes are kept');
+  assert.ok(text.includes('made by seraphum'), 'keeps the signature');
+
+  const buttons = collectButtons(payload);
+  assert.deepEqual(
+    buttons.map((button) => button.custom_id),
+    ['spawner:buy', 'spawner:sell'],
+  );
+  assert.deepEqual(
+    buttons.map((button) => button.label),
+    ['Buy Spawners', 'Sell Spawners'],
+  );
+  assert.equal(buttons[0].style, 4, 'buy is red');
+  assert.equal(buttons[1].style, 3, 'sell is green');
+});
+
+test('a board with no prices shows no spawner rows at all', () => {
+  const payload = spawners.panelPayload(noEmojiGuild, { spawners: { buy: {}, sell: {} } });
+  const text = textOf(payload);
+  assert.equal(
+    (text.match(/no prices listed yet/g) || []).length,
+    2,
+    'both sides explain that nothing is listed',
+  );
+  assert.ok(!text.includes('Skeleton'), 'no spawner rows');
+  assert.ok(!text.includes('not set'), 'no placeholder prices');
+  assert.equal(spawners.priceLine(noEmojiGuild, { spawners: { buy: {} } }, spawners.spawnerByKey('cow'), 'buy'), null);
+});
+
+test('the saved board message is remembered per guild', () => {
+  assert.equal(spawners.storedPanel({ spawners: { buy: {}, sell: {} } }), null);
+  assert.deepEqual(
+    spawners.storedPanel({ spawners: { panelChannelId: 'c-1', panelMessageId: 'm-1' } }),
+    { channelId: 'c-1', messageId: 'm-1' },
+  );
+});
+
+test('links are validated and YouTube covers are picked up', () => {
+  assert.equal(media.cleanUrl('https://youtu.be/dQw4w9WgXcQ'), 'https://youtu.be/dQw4w9WgXcQ');
+  assert.equal(media.cleanUrl('not a link'), null);
+  assert.equal(media.cleanUrl('ftp://example.com/video'), null);
+  assert.ok(
+    media
+      .videoThumbnail('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+      .includes('i.ytimg.com/vi/dQw4w9WgXcQ'),
+  );
+  assert.ok(
+    media.videoThumbnail('https://youtube.com/shorts/dQw4w9WgXcQ').includes('dQw4w9WgXcQ'),
+  );
+  assert.equal(media.videoThumbnail('https://example.com/video.mp4'), null);
+});
+
+const mediaGuild = {
+  id: 'g-1',
+  ownerId: 'owner-1',
+  roles: {
+    cache: {
+      find: (predicate) =>
+        [
+          { id: 'g-1', name: '@everyone', managed: false },
+          { id: 'role-nemino', name: 'Nemino', managed: false },
+        ].find(predicate) ?? null,
+      get: (id) => (id === media.DEFAULT_PING_ROLE_ID ? { id, name: 'Nemino' } : null),
+    },
+  },
+};
+
+test('uploads ping the Nemino role', () => {
+  const role = media.announceRole(mediaGuild);
+  assert.equal(role.id, 'role-nemino');
+
+  const payload = media.uploadCard({ guild: mediaGuild, url: 'https://youtu.be/dQw4w9WgXcQ' });
+  assert.equal(payload.components.length, 1, 'one wide container');
+  assert.equal(payload.content, undefined, 'V2 rejects a content field');
+  assert.deepEqual(payload.allowedMentions, { parse: [], roles: ['role-nemino'] });
+
+  const text = textOf(payload);
+  assert.ok(text.includes('<@&role-nemino>'), 'mentions the role inside the card');
+  assert.ok(text.includes('realnemino'), 'names the owner');
+  assert.ok(text.includes('dQw4w9WgXcQ'), 'links the video');
+  assert.ok(text.includes('i.ytimg.com'), 'uses the cover image');
+  assert.ok(text.includes('made by seraphum'), 'keeps the signature');
+
+  const buttons = collectButtons(payload);
+  assert.equal(buttons.length, 2, 'watch button plus the channel link');
+  assert.equal(buttons[0].style, 5, 'link button');
+  assert.equal(buttons[0].url, 'https://youtu.be/dQw4w9WgXcQ');
+  assert.equal(buttons[1].url, media.YOUTUBE_CHANNEL_URL, 'always links the channel');
+});
+
+test('going live pings the server with the stream title', () => {
+  const payload = media.liveCard({
+    guild: mediaGuild,
+    title: 'Building the 10B base',
+    url: 'https://twitch.tv/realnemino',
+  });
+  assert.deepEqual(payload.allowedMentions, { parse: ['everyone'] });
+  const text = textOf(payload);
+  assert.ok(text.includes('@everyone'), 'pings the server');
+  assert.ok(text.includes('Building the 10B base'), 'shows the stream title');
+  assert.ok(text.includes('twitch.tv/realnemino'), 'links the stream');
+  assert.equal(collectButtons(payload)[0].url, 'https://twitch.tv/realnemino');
+  assert.equal(collectButtons(payload)[1].url, media.YOUTUBE_CHANNEL_URL, 'links the channel');
+
+  const noLink = media.liveCard({ guild: mediaGuild, title: 'Chilling', url: null });
+  assert.equal(collectButtons(noLink).length, 1, 'only the channel link without a stream url');
+  assert.ok(textOf(noLink).includes('@everyone'));
+});
+
+console.log('\nLive tracking');
+const streams = require('../src/lib/streams');
+
+test('a redirect to the watch page means the channel is live', () => {
+  assert.deepEqual(
+    streams.parseLiveResponse({
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      status: 200,
+    }),
+    { live: true, videoId: 'dQw4w9WgXcQ' },
+  );
+  assert.deepEqual(
+    streams.parseLiveResponse({ url: 'https://www.youtube.com/@RealNemino/live', status: 200, html: 'x' }),
+    { live: false, videoId: null },
+    'an offline channel page is not live',
+  );
+  assert.equal(streams.parseLiveResponse({ status: 429 }).live, false, 'rate limits are not live');
+  assert.equal(streams.parseLiveResponse({}).live, false);
+});
+
+test('a live marker in the page is read with its video id', () => {
+  const live = '"isLive":true,"videoId":"abcDEF12345"';
+  assert.deepEqual(streams.parseLiveResponse({ status: 200, html: live }), {
+    live: true,
+    videoId: 'abcDEF12345',
+  });
+  assert.equal(
+    streams.parseLiveResponse({ status: 200, html: '"videoId":"abcDEF12345","hlsManifestUrl":"https://x"' })
+      .live,
+    true,
+    'a live player manifest is enough',
+  );
+  assert.equal(streams.parseLiveResponse({ status: 200, html: '"isLive":false' }).live, false);
+  assert.equal(streams.videoIdFrom('no id here'), null);
+
+  // The marker sits deep in a real channel page, well past the first chunk.
+  const deep = `${'x'.repeat(500_000)}"videoId":"abcDEF12345","liveBroadcastDetails":{"isLiveNow":true}`;
+  assert.deepEqual(streams.parseLiveResponse({ status: 200, html: deep }), {
+    live: true,
+    videoId: 'abcDEF12345',
+  });
+});
+
+test('a manual announcement marks the live video as already announced', () => {
+  const settings = { stream: {} };
+  assert.equal(streams.markAnnounced(settings, 'abcDEF12345'), true);
+  assert.equal(settings.stream.announcedVideoId, 'abcDEF12345');
+  assert.ok(settings.stream.announcedAt, 'remembers when it was announced');
+  assert.equal(streams.markAnnounced(settings, null), false);
+});
+
+test('the watched channel is the RealNemino YouTube channel', () => {
+  assert.equal(media.YOUTUBE_CHANNEL_URL, 'https://www.youtube.com/@RealNemino');
+  assert.equal(streams.liveUrl(), 'https://www.youtube.com/@RealNemino/live');
+  assert.equal(streams.liveUrl('RealNemino'), 'https://www.youtube.com/@RealNemino/live');
+  assert.equal(streams.watchUrl('dQw4w9WgXcQ'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  assert.equal(streams.handleOf(''), '@RealNemino');
+  assert.equal(streams.POLL_MS, 3 * 60 * 1000);
+});
+
+test('only the owner, Manage Server or the announced role may post', () => {
+  const member = (id, permissions, roles = []) => ({
+    id,
+    permissions: { has: (permission) => permissions.includes(permission) },
+    roles: { cache: { has: (roleId) => roles.includes(roleId) } },
+  });
+  const role = { id: 'role-nemino' };
+  assert.equal(media.canAnnounce(member('owner-1', []), mediaGuild, role), true);
+  assert.equal(media.canAnnounce(member('1', ['ManageGuild']), mediaGuild, role), true);
+  assert.equal(media.canAnnounce(member('1', [], ['role-nemino']), mediaGuild, role), true);
+  assert.equal(media.canAnnounce(member('1', [], []), mediaGuild, role), false);
+});
+
+console.log(`\n${failures === 0 ? '✅ All checks passed' : `❌ ${failures} check(s) failed`}`);
+console.log(`   ${jsonByName.size} commands: ${[...jsonByName.keys()].map((n) => `/${n}`).join(', ')}\n`);
+process.exit(failures === 0 ? 0 : 1);

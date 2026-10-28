@@ -1,0 +1,19 @@
+{
+  "name": "server-bot",
+  "version": "1.0.0",
+  "description": "Discord staff bot with tickets, applications, giveaways, promotions and strikes",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "check": "node scripts/validate.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^16.6.1"
+  }
+}

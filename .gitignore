@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+!.env.example
+data/
+transcripts/
+*.log
+*.zip
+wispbyte.env
+screenshots/
+
+*.err
