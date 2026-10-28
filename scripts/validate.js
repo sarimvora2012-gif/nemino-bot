@@ -855,6 +855,30 @@ test('activity checks persist', () => {
   assert.equal(reloaded.activity.current.messageId, 'm1');
 });
 
+test('level defaults apply and the old 60s cooldown migrates once', () => {
+  const fresh = store.guild('fresh');
+  assert.equal(fresh.levels.enabled, true);
+  assert.equal(fresh.levels.cooldownSeconds, 20, 'new servers get the 20s cooldown');
+  assert.equal(fresh.levels.xpMin, 15);
+  assert.equal(fresh.levels.xpMax, 25);
+  assert.deepEqual(fresh.levels.users, {});
+
+  const legacy = store.guild('legacy');
+  legacy.levels.cooldownSeconds = 60;
+  delete legacy.levels.cooldownChecked;
+  store.save();
+
+  const reopened = new Store(file);
+  assert.equal(reopened.guild('legacy').levels.cooldownSeconds, 20, 'the old default is migrated');
+
+  const chosen = reopened.guild('legacy');
+  chosen.levels.cooldownSeconds = 60;
+  chosen.levels.cooldownChecked = true;
+  reopened.save();
+  const again = new Store(file);
+  assert.equal(again.guild('legacy').levels.cooldownSeconds, 60, 'an explicit 60 is respected afterwards');
+});
+
 test('counters increment and persist', () => {
   assert.equal(store.nextCounter('123', 'ticket'), 1);
   assert.equal(store.nextCounter('123', 'ticket'), 2);
@@ -1552,6 +1576,34 @@ test('the leaderboard orders by XP and rank cards show progress', () => {
   const top = textOf(levels.leaderboardCard({ name: 'Arcane', iconURL: () => null }, settings));
   assert.ok(top.includes('<@b>') && top.includes('Level 4'), 'leaderboard shows levels (900 XP)');
   assert.ok(!top.includes('<@c>'), 'members without XP are hidden');
+});
+
+test('slash commands only re-register when they actually changed', () => {
+  const { canonical, diffCommands } = require('../src/lib/commandsync');
+  const local = [
+    { name: 'level', description: 'Levels earned by chatting', options: [{ type: 1, name: 'rank' }] },
+    { name: 'ping', description: 'Check that the bot is alive' },
+  ];
+  const remote = [
+    { id: '1', application_id: '2', version: '3', ...local[0] },
+    { id: '4', application_id: '2', version: '5', ...local[1] },
+  ];
+
+  assert.equal(diffCommands(local, remote).identical, true, 'ids and versions are ignored');
+  assert.equal(canonical(local[1]), canonical(remote[1]));
+
+  const added = diffCommands([...local, { name: 'rank', description: 'x' }], remote);
+  assert.deepEqual(added.added, ['rank']);
+  assert.equal(added.identical, false);
+
+  const changed = diffCommands(
+    [{ ...local[1], description: 'Changed' }, local[0]],
+    remote,
+  );
+  assert.deepEqual(changed.changed, ['ping'], 'a description edit counts as a change');
+
+  const removed = diffCommands([local[1]], remote);
+  assert.deepEqual(removed.removed, ['level']);
 });
 
 test('nickname updates explain why Discord refuses them', () => {

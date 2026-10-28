@@ -54,7 +54,7 @@ function defaultGuild() {
       announceChannelId: null,
       xpMin: 15,
       xpMax: 25,
-      cooldownSeconds: 60,
+      cooldownSeconds: 20,
       users: {},
     },
     honeypot: { channelId: null, messageId: null, inviteUrl: null },
@@ -131,6 +131,12 @@ class Store {
     guild.honeypot = { ...defaults.honeypot, ...guild.honeypot };
     guild.levels = { ...defaults.levels, ...guild.levels };
     guild.levels.users = { ...(guild.levels.users ?? {}) };
+    // The first shipped cooldown was 60s; move servers saved with it to the
+    // new 20s once, then never touch an explicit choice again.
+    if (!guild.levels.cooldownChecked) {
+      if (guild.levels.cooldownSeconds === 60) guild.levels.cooldownSeconds = 20;
+      guild.levels.cooldownChecked = true;
+    }
     guild.spawners = {
       ...defaults.spawners,
       ...guild.spawners,

@@ -309,9 +309,11 @@ Self-vouches and vouches for bots are refused. `!vouchadd` works for the server 
 | `/level settings [enabled] [announce] [announce_channel] [xp_min] [xp_max] [cooldown]` | View or change XP earning (Manage Server) |
 | `/level setxp user:@member xp:<n>` | Set a member's total XP — handy for porting levels from another bot |
 
-Every message earns **15–25 XP** (random per message) with a **60-second cooldown**, so chatting normally levels someone while spam cannot. Bots, DMs and non-text channels are ignored. The curve is `5n² + 50n + 100` XP per level — 100 XP to level 1, 155 to level 2, 220 to level 3 — so the first levels come fast and later ones stretch.
+Every message earns **15–25 XP** (random per message) with a **20-second cooldown**, so chatting normally levels someone while spam cannot. Bots, DMs and non-text channels are ignored. The curve is `5n² + 50n + 100` XP per level — 100 XP to level 1, 155 to level 2, 220 to level 3 — so the first levels come fast and later ones stretch.
 
 Level-ups post a small card in the channel where they happened, or in the channel set with `/level settings announce_channel:#channel`; `announce:false` keeps them silent and the levels still count. XP is saved to `data/data.json` under `levels.users`, written at most once every 5 seconds instead of on every message, so a busy server does not hammer the disk.
+
+Slash commands register themselves on startup: if the code's command set differs from what Discord has, the bot updates it and logs `[commands] … registered`. `npm run deploy` still works, but is no longer required after an update. Set `GUILD_ID` so the update lands instantly instead of waiting for Discord's global cache.
 
 Levels are counted by this bot only — nothing is read from another bot's database. To bring an old Arcane leaderboard across, set each number with `/level setxp`, which accepts total XP and reports the level it works out to.
 

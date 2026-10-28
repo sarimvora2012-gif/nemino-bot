@@ -121,12 +121,18 @@ duplicated tickets, panels and pings, and they'll fight over the same `data/data
 
 ## 6. Slash commands
 
-Already registered for your server — nothing to do. Run this in the Console only if you
-change command options later or move to a different server:
+Nothing to do. On every start the bot compares its own command list with Discord's and
+re-registers only when they differ, logging either:
 
-```bash
-npm run deploy
 ```
+[commands] 17 slash commands already up to date
+[commands] 17 slash commands registered (new: /level)
+```
+
+So a code update lands by itself. `npm run deploy` still exists for a manual push, but it is
+no longer needed after an update — a later restart catches up on its own. With `GUILD_ID`
+set the change is instant; without it Discord's global copy can take up to an hour to
+refresh (Ctrl+R in Discord once the log says it registered).
 
 ## Updating the bot later
 
@@ -138,7 +144,7 @@ counters keep running on whatever the hosted bot has saved.
 2. Delete the zip.
 3. Console → **Restart**.
 
-If the update adds or changes slash commands, run `npm run deploy` in the console once.
+Slash commands need nothing extra: the restart re-registers them automatically when the command list changed.
 
 **Want it automatic?** Wispbyte can pull the code itself instead of you uploading zips.
 This folder is already a git repo with a first commit, and `.env`, `data/`, `node_modules/`,
@@ -197,7 +203,7 @@ to watch. If the server pauses, open the panel and resume it — nothing is lost
 | `Used disallowed intents` | Developer Portal → Bot → enable **Message Content** and **Server Members** intents. |
 | `Cannot find module 'discord.js'` | `package.json` is missing from the root, so `npm install` had nothing to install. Re-upload it and restart. |
 | `Cannot find module './src/index.js'` or similar | Files are inside a subfolder, or the zip was extracted with broken paths. Re-upload `nemino-bot.zip` and Unarchive it again. |
-| Bot online, commands missing | Console: `npm run deploy`, then Ctrl+R in Discord. |
+| Bot online, commands missing | Check the console for a `[commands]` line. `already up to date` means Discord has them — press Ctrl+R. `Deploy failed` usually means the bot was re-invited without the `applications.commands` scope, or `GUILD_ID` is missing so the global copy is still caching. |
 | Activity checks / member counts fail | **Server Members** intent is off, or the bot's role sits below the staff role in the role list. |
 | Nothing posts in a channel | Give the bot **View Channel**, **Send Messages**, **Embed Links** in that channel. |
 | Server restarts by itself | RAM or CPU cap. 512 MB should be plenty; if the console says `heap out of memory`, contact Wispbyte support. |

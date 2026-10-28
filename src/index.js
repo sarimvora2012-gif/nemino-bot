@@ -17,6 +17,7 @@ const {
   Partials,
 } = require('discord.js');
 const { Store } = require('./store');
+const { syncCommands, logSync } = require('./lib/commandsync');
 const { errorEmbed } = require('./lib/helpers');
 const activity = require('./lib/activity');
 const automod = require('./lib/automod');
@@ -42,6 +43,7 @@ const store = new Store(path.join(root, 'data', 'data.json'));
 
 const modules = {};
 const commands = new Map();
+const commandJson = [];
 
 function loadCommands() {
   const dir = path.join(__dirname, 'commands');
@@ -51,6 +53,7 @@ function loadCommands() {
     modules[name] = mod;
     for (const builder of mod.data) {
       commands.set(builder.name, mod);
+      commandJson.push(builder.toJSON());
     }
   }
 }
@@ -112,7 +115,17 @@ client.once(Events.ClientReady, (readyClient) => {
   readyClient.user.setActivity('tickets & applications', { type: ActivityType.Watching });
   console.log(`✅ Logged in as ${readyClient.user.tag}`);
   console.log(`   Serving ${readyClient.guilds.cache.size} server(s) · ${commands.size} commands loaded`);
-  console.log('   Tip: run "npm run deploy" after changing commands.');
+
+  // Slash commands are registered automatically when the code's set differs
+  // from Discord's, so an update does not depend on remembering npm run deploy.
+  syncCommands({
+    token,
+    clientId: process.env.CLIENT_ID?.trim(),
+    guildId: process.env.GUILD_ID?.trim(),
+    commands: commandJson,
+  })
+    .then((result) => logSync(result, process.env.GUILD_ID?.trim()))
+    .catch((err) => console.error('[commands] Sync failed:', err.message));
   activity.startScheduler(context);
   modules.giveaway?.startScheduler(context);
   membercount.start(context);
