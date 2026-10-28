@@ -192,7 +192,7 @@ to watch. If the server pauses, open the panel and resume it — nothing is lost
 
 | Symptom | Fix |
 | --- | --- |
-| `DISCORD_TOKEN is missing` | No `.env` in the root and no `DISCORD_TOKEN` in Startup variables — or the file is named `env` / `.env.txt`. |
+| `DISCORD_TOKEN is missing` | No env file next to `package.json`. `.env`, `wispbyte.env` and `env` are all accepted, so `wispbyte.env` can be uploaded without renaming. Clone never brings it — `.env` is gitignored on purpose so the token cannot leak into GitHub. |
 | `An invalid token was provided` | Token copied wrong or reset. Copy it again from the Developer Portal → Bot. |
 | `Used disallowed intents` | Developer Portal → Bot → enable **Message Content** and **Server Members** intents. |
 | `Cannot find module 'discord.js'` | `package.json` is missing from the root, so `npm install` had nothing to install. Re-upload it and restart. |

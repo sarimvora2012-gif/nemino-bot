@@ -3,9 +3,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Always read the .env that sits next to package.json, no matter which working
-// directory the hosting panel starts the process from.
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+// Always read the env file that sits next to package.json, no matter which
+// working directory the hosting panel starts the process from. `.env`,
+// `wispbyte.env` and `env` are all accepted.
+require('./lib/env').loadEnv();
 const {
   Client,
   GatewayIntentBits,
@@ -70,7 +71,7 @@ if (!token) {
     [
       'DISCORD_TOKEN is missing.',
       '',
-      'Create a file named .env in the same folder as package.json, containing:',
+      'Create a file named .env (or wispbyte.env) next to package.json, containing:',
       '  DISCORD_TOKEN=your-bot-token',
       '  CLIENT_ID=your-application-id',
       '  GUILD_ID=your-server-id',

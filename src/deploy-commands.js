@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('./lib/env').loadEnv();
 
 const { REST, Routes } = require('discord.js');
 

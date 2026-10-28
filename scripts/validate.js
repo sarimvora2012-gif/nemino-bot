@@ -1572,4 +1572,9 @@ test('only the owner, Manage Server or the announced role may post', () => {
 
 console.log(`\n${failures === 0 ? '✅ All checks passed' : `❌ ${failures} check(s) failed`}`);
 console.log(`   ${jsonByName.size} commands: ${[...jsonByName.keys()].map((n) => `/${n}`).join(', ')}\n`);
+test('env loader accepts .env, wispbyte.env and env', () => {
+  const { ENV_FILES } = require(path.join(root, 'src', 'lib', 'env'));
+  assert.deepEqual(ENV_FILES, ['.env', 'wispbyte.env', 'env']);
+});
+
 process.exit(failures === 0 ? 0 : 1);
