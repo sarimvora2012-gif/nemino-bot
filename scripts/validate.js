@@ -3030,7 +3030,12 @@ test('messages and voice time are counted per member', () => {
     0,
     'a closed session cannot be counted twice',
   );
-  assert.equal(scoreboard.entriesFor(settings, 'voice')[0].value, 5400);
+  const voiceEntry = scoreboard.entriesFor(settings, 'voice')[0];
+  assert.equal(voiceEntry.value, 6, 'voice is ranked in points, not seconds');
+  assert.equal(voiceEntry.seconds, 5400, 'the real time is still kept for display');
+  assert.equal(scoreboard.voicePoints(899), 0, 'under 15 minutes is not a point');
+  assert.equal(scoreboard.voicePoints(900), 1);
+  assert.equal(scoreboard.voicePoints(3600), 4);
 
   assert.equal(scoreboard.formatVoice(45), '<1m');
   assert.equal(scoreboard.formatVoice(120), '2m');
@@ -3039,46 +3044,76 @@ test('messages and voice time are counted per member', () => {
   assert.equal(scoreboard.formatVoice(0), '0m');
 });
 
-test('voice sessions follow joins, moves and leaves', () => {
+test('voice only counts with three people in the channel', () => {
   const settings = { activityStats: { users: {} }, memberCountChannelId: 'counter' };
   const store = fakeBoardStore(settings);
-  const guild = { id: 'g', afkChannelId: 'afk' };
-  const member = { id: 'u1', user: { bot: false } };
-  const state = (channelId) => ({
-    guild,
-    member,
-    channel: channelId ? { id: channelId } : null,
-  });
+  const voiceStates = new Map();
+  const guild = { id: 'g', afkChannelId: 'afk', voiceStates: { cache: voiceStates } };
+  const users = settings.activityStats.users;
 
-  scoreboard.handleVoiceState(state(null), state('v1'), { store });
-  const joinedAt = settings.activityStats.users.u1.voiceSince;
-  assert.ok(joinedAt, 'joining voice starts a session');
+  /** Joins `id` to a channel (or leaves with null) and updates the voice cache. */
+  const join = (id, channelId, bot = false) => {
+    const state = {
+      id,
+      guild,
+      member: { id, user: { bot } },
+      channelId,
+      channel: channelId ? { id: channelId } : null,
+    };
+    if (channelId) voiceStates.set(id, state);
+    else voiceStates.delete(id);
+    return state;
+  };
 
-  scoreboard.handleVoiceState(state('v1'), state('v2'), { store });
-  assert.equal(
-    settings.activityStats.users.u1.voiceSince,
-    joinedAt,
-    'moving channels keeps the same session',
-  );
+  const enter = (id, channelId, bot = false) => {
+    const before = voiceStates.get(id) ?? null;
+    const after = join(id, channelId, bot);
+    scoreboard.handleVoiceState(before, after, { store });
+    return after;
+  };
+  const leave = (id) => {
+    const before = voiceStates.get(id) ?? null;
+    const after = join(id, null);
+    scoreboard.handleVoiceState(before, after, { store });
+    return after;
+  };
+  const move = (id, from, to) => {
+    const before = join(id, from);
+    const after = join(id, to);
+    scoreboard.handleVoiceState(before, after, { store });
+  };
 
-  scoreboard.handleVoiceState(state('v2'), state(null), { store });
-  assert.equal(settings.activityStats.users.u1.voiceSince, null, 'leaving closes the session');
+  enter('a', 'v1');
+  assert.equal(users.a?.voiceSince ?? null, null, 'one person alone earns nothing');
+  enter('b', 'v1');
+  assert.equal(users.b?.voiceSince ?? null, null, 'two people still earn nothing');
+  enter('c', 'v1');
+  assert.ok(users.a.voiceSince && users.b.voiceSince && users.c.voiceSince, 'three people start the clock');
 
-  scoreboard.handleVoiceState(state(null), state('afk'), { store });
-  scoreboard.handleVoiceState(state(null), state('counter'), { store });
-  assert.equal(
-    settings.activityStats.users.u1.voiceSince,
-    null,
-    'the AFK and member-counter channels never count',
-  );
+  enter('d', 'v1');
+  assert.ok(users.d.voiceSince, 'a fourth joins the running clock');
 
-  const botState = (channelId) => ({
-    guild,
-    member: { id: 'bot1', user: { bot: true } },
-    channel: channelId ? { id: channelId } : null,
-  });
-  scoreboard.handleVoiceState(botState(null), botState('v1'), { store });
-  assert.equal(settings.activityStats.users.bot1, undefined, 'bots are not tracked');
+  leave('b');
+  assert.equal(users.b.voiceSince, null, 'the leaver stops');
+  assert.ok(users.a.voiceSince, 'three people are still enough for the others');
+
+  leave('c');
+  assert.equal(users.a.voiceSince, null, 'dropping to two people stops everybody left');
+  assert.equal(users.d.voiceSince, null);
+
+  enter('c', 'v1');
+  assert.ok(users.a.voiceSince && users.d.voiceSince && users.c.voiceSince, 'a third person restarts it');
+
+  move('c', 'v1', 'v2');
+  assert.equal(users.c.voiceSince, null, 'moving to an empty channel stops their own clock');
+  assert.equal(users.a.voiceSince, null, 'and stops the two they left behind');
+
+  enter('a', 'afk');
+  enter('a', 'counter');
+  assert.equal(users.a.voiceSince, null, 'the AFK and member-counter channels never count');
+
+  enter('bot1', 'v1', true);
+  assert.equal(users.bot1, undefined, 'bots are not tracked');
 });
 
 test('the scoreboard pages through every member and switches board', () => {
@@ -3149,7 +3184,7 @@ test('the scoreboard pages through every member and switches board', () => {
   const chat = textOf(scoreboard.card(guild, settings, { type: 'messages' }));
   assert.ok(chat.includes('TOP CHATTERS') && chat.includes('**900** messages'));
   const voice = textOf(scoreboard.card(guild, settings, { type: 'voice' }));
-  assert.ok(voice.includes('TOP VOICE') && voice.includes('**2h** in voice'));
+  assert.ok(voice.includes('TOP VOICE') && voice.includes('**8 pts** · 2h in voice'));
   assert.ok(!voice.includes('<@a>'), 'members with no voice time are hidden');
 
   const messagesTab = buttonsOf(scoreboard.card(guild, settings, { type: 'messages' }));

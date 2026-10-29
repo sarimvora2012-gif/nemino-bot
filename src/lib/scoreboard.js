@@ -9,6 +9,16 @@ const v2 = require('./v2');
 const PAGE_SIZE = 10;
 const SAVE_DEBOUNCE_MS = 5_000;
 const TYPES = ['levels', 'messages', 'voice'];
+// Voice only counts while people are actually hanging out together, and it is
+// deliberately slow: one point per 15 minutes keeps a long call from outrunning
+// months of chatting.
+const MIN_VOICE_MEMBERS = 3;
+const VOICE_SECONDS_PER_POINT = 15 * 60;
+
+/** A session's words in points — the number the voice board ranks by. */
+function voicePoints(seconds) {
+  return Math.floor(Math.max(0, Math.floor(Number(seconds) || 0)) / VOICE_SECONDS_PER_POINT);
+}
 
 let saveTimer = null;
 
@@ -91,22 +101,57 @@ function endVoice(store, settings, userId, at) {
   return seconds;
 }
 
+/** Everyone else connected to a channel, as far as Discord's cache knows. */
+function channelMembers(guild, channelId, excludeId = null) {
+  const ids = new Set();
+  for (const state of guild?.voiceStates?.cache?.values?.() ?? []) {
+    const id = state?.id ?? state?.member?.id;
+    if (!id || id === excludeId) continue;
+    if (state.channelId !== channelId) continue;
+    if (!state.channel || !state.member || state.member.user?.bot) continue;
+    ids.add(id);
+  }
+  return ids;
+}
+
+/**
+ * A voice session only runs while the channel holds `MIN_VOICE_MEMBERS` people,
+ * so two friends in a call and someone sitting alone after everybody left earn
+ * nothing. Joiners and leavers re-check the whole channel, which is why one
+ * person leaving a full call stops the clock for everybody left behind.
+ */
+function applyGate(store, settings, guild, channelId, memberId, present, at) {
+  if (!channelId) return;
+  const others = channelMembers(guild, channelId, memberId);
+  const total = others.size + (present ? 1 : 0);
+  const counting = total >= MIN_VOICE_MEMBERS;
+
+  if (present && counting) startVoice(store, settings, memberId, at);
+  else endVoice(store, settings, memberId, at);
+
+  for (const id of others) {
+    if (counting) startVoice(store, settings, id, at);
+    else endVoice(store, settings, id, at);
+  }
+}
+
 function handleVoiceState(oldState, newState, { store }) {
   const guild = newState?.guild ?? oldState?.guild;
   if (!guild) return;
   const member = newState?.member ?? oldState?.member;
-  if (!member || member.user?.bot) return;
+  const memberId = member?.id ?? newState?.id ?? oldState?.id;
+  if (!member || member.user?.bot || !memberId) return;
 
   const settings = store.guild(guild.id);
   const channelId = settings.memberCountChannelId;
-  const was = countsForVoice(oldState, channelId);
-  const is = countsForVoice(newState, channelId);
-  // Moving between two countable channels is one continuous session.
+  const was = countsForVoice(oldState, channelId) ? oldState.channel.id : null;
+  const is = countsForVoice(newState, channelId) ? newState.channel.id : null;
+  // Mute/deafen changes and staying put never move the clock.
   if (was === is) return;
 
   const now = Date.now();
-  if (is) startVoice(store, settings, member.id, now);
-  else endVoice(store, settings, member.id, now);
+  if (was) applyGate(store, settings, guild, was, memberId, false, now);
+  if (is) applyGate(store, settings, guild, is, memberId, true, now);
 }
 
 /**
@@ -119,10 +164,19 @@ function syncVoiceSessions(client, store) {
     const settings = store.guild(guild.id);
     for (const record of Object.values(statsStore(settings))) record.voiceSince = null;
 
+    const rosters = new Map();
     for (const state of guild.voiceStates?.cache?.values?.() ?? []) {
-      if (!state?.member || state.member.user?.bot) continue;
+      const id = state?.id ?? state?.member?.id;
+      if (!id || !state.channel || state.member?.user?.bot) continue;
       if (!countsForVoice(state, settings.memberCountChannelId)) continue;
-      recordFor(settings, state.member.id).voiceSince = now;
+      const ids = rosters.get(state.channelId) ?? new Set();
+      ids.add(id);
+      rosters.set(state.channelId, ids);
+    }
+
+    for (const ids of rosters.values()) {
+      if (ids.size < MIN_VOICE_MEMBERS) continue;
+      for (const id of ids) recordFor(settings, id).voiceSince = now;
     }
   }
   try {
@@ -168,12 +222,13 @@ function entriesFor(settings, type) {
 
   if (type === 'voice') {
     return Object.entries(statsStore(settings))
-      .map(([id, record]) => ({
-        id,
-        value: Math.max(0, Math.floor(Number(record?.voiceSeconds) || 0)),
-      }))
+      .map(([id, record]) => {
+        const seconds = Math.max(0, Math.floor(Number(record?.voiceSeconds) || 0));
+        return { id, value: voicePoints(seconds), seconds };
+      })
+      // Under 15 minutes is not a point yet, so nobody is ranked on 0.
       .filter((entry) => entry.value > 0)
-      .sort((a, b) => b.value - a.value || a.id.localeCompare(b.id));
+      .sort((a, b) => b.value - a.value || b.seconds - a.seconds || a.id.localeCompare(b.id));
   }
 
   // The level store has counted messages since the bot was installed, so the
@@ -202,7 +257,7 @@ function detailFor(entry, type) {
   if (type === 'messages') {
     return `**${entry.value.toLocaleString('en-US')}** messages`;
   }
-  return `**${formatVoice(entry.value)}** in voice`;
+  return `**${entry.value} pt${entry.value === 1 ? '' : 's'}** · ${formatVoice(entry.seconds)} in voice`;
 }
 
 function lineFor(entry, place, type) {
@@ -302,9 +357,12 @@ function handleMessage(message, { store }) {
 
 module.exports = {
   BOARDS,
+  MIN_VOICE_MEMBERS,
   PAGE_SIZE,
   TYPES,
+  VOICE_SECONDS_PER_POINT,
   card,
+  channelMembers,
   countsForVoice,
   endVoice,
   detailFor,
@@ -321,4 +379,5 @@ module.exports = {
   statsStore,
   syncVoiceSessions,
   viewerLine,
+  voicePoints,
 };

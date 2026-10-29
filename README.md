@@ -343,9 +343,13 @@ The scoreboard is one card with three tabs — 📈 **ʟᴇᴠᴇʟꜱ**, 💬 *
 | --- | --- | --- |
 | Levels | XP earned by chatting | `levels.users` |
 | Messages | Every message sent, even with XP turned off | `activityStats.users[].messages` |
-| Voice time | Seconds spent connected to voice | `activityStats.users[].voiceSeconds` |
+| Voice | **1 point per 15 minutes** spent in a call with at least 3 people | `activityStats.users[].voiceSeconds` |
 
-Messages are counted per server for members only — bots, DMs and the honeypot are not counted. Voice time is stored as a session start, so hours only cost a write when someone leaves; moving between two channels is one continuous session, and the **AFK channel** and the `Members - <count>` counter channel never count. Sessions are reopened on startup for whoever is already connected (time while the bot itself is offline is not counted), and closing sessions on shutdown keeps the time earned up to that moment.
+Messages are counted per server for members only — bots, DMs and the honeypot are not counted.
+
+Voice is deliberately minimal: a call earns **one point per 15 minutes**, so a three-hour hangout is 12 points — nothing next to a few hundred messages — and anything under 15 minutes is not on the board at all. Rows show both the points and the real time, e.g. `**8 pts** · 2h in voice`.
+
+The clock only runs while **3 or more people** are in the channel together. It starts when the third person joins and stops for everyone still sitting there as soon as the group drops back to two, so solo calls, duo calls and an empty channel after everybody left earn nothing. The **AFK channel** and the `Members - <count>` counter channel never count. Sessions are stored as a start time, so hours only cost a write when a session ends; they are reopened on startup for every channel that is already busy enough (time while the bot itself is offline is not counted), and closing sessions on shutdown keeps the time earned up to that moment.
 
 XP and message counts are separate, so the message board keeps working with `/level settings enabled:false`.
 

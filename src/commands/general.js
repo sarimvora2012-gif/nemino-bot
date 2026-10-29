@@ -103,6 +103,7 @@ async function execute(interaction, { client }) {
           '`/level top` — every member’s XP, ten per page',
           '`/scoreboard [type]` — switch between Levels, Messages and Voice time',
           'Use ◀️ Back and ▶️ Next under a leaderboard to see everyone',
+          '🔊 Voice earns 1 point per 15 minutes, and only while 3+ people are in the channel',
           '`/level settings` — XP per message, cooldown, announce channel (owner and co-owner only)',
           '`/level setxp user:@member xp:<n>` — set total XP (owner and co-owner only)',
         ].join('\n'),
