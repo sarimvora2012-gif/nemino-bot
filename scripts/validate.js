@@ -1617,6 +1617,116 @@ test('syncNickname renames the member once and reports it', async () => {
   assert.equal(second.changed, false, 'no API call when the name is already right');
   assert.equal(again.renamed, undefined);
 });
+function bulkRig() {
+  const { guild, settings } = nameRig();
+  const roleCache = guild.roles.cache;
+  const person = (id, roleIds, displayName) => {
+    const held = roleIds.map((roleId) => roleCache.get(roleId)).filter(Boolean);
+    const built = {
+      id,
+      displayName,
+      guild,
+      user: { username: id, bot: false },
+      roles: {
+        cache: { has: (roleId) => roleIds.includes(roleId), values: () => held },
+        highest: { position: Math.max(0, ...held.map((role) => role.position)) },
+      },
+      setNickname: async (name) => {
+        built.renamed = name;
+      },
+    };
+    return built;
+  };
+  return { guild, settings, person, roleCache };
+}
+
+test('a bulk sync rebuilds every staff name and fixes stale prefixes', async () => {
+  const { guild, settings, person } = bulkRig();
+  const staff = person('a', ['staff', 'mod'], 'Slash');
+  const stale = person('b', ['staff'], 'ᴍᴏᴅ Ruby');
+  const settled = person('e', ['staff', 'mod'], 'ᴍᴏᴅ Echo');
+  const plain = person('c', ['elite'], 'Nova');
+  const former = person('d', ['elite'], 'ᴍᴏᴅ Ghost');
+  const bots = { id: 'z', user: { bot: true }, displayName: 'Bot', guild, roles: { cache: { has: () => false } } };
+
+  const people = new Map([
+    ['a', staff],
+    ['b', stale],
+    ['c', plain],
+    ['d', former],
+    ['e', settled],
+    ['z', bots],
+  ]);
+  guild.members.fetch = async () => people;
+  const store = { guild: () => settings, save: () => {} };
+
+  const result = await staffname.syncAllNicknames(guild, store, { gapMs: 0 });
+  assert.equal(staff.renamed, 'ᴍᴏᴅ Slash', 'staff get their rank in front');
+  assert.equal(stale.renamed, 'ꜱᴛᴀꜰꜰ Ruby', 'an old rank prefix is replaced, not stacked');
+  assert.equal(settled.renamed, undefined, 'a correct name is not touched');
+  assert.equal(plain.renamed, undefined, 'plain members keep their name');
+  assert.equal(former.renamed, 'Ghost', 'a prefix from a former rank is removed');
+  assert.equal(result.updated, 2);
+  assert.equal(result.already, 1);
+  assert.equal(result.cleared, 1);
+  assert.equal(result.untouched, 1, 'only the plain member is skipped');
+
+  guild.members.me.permissions.has = () => false;
+  const blocked = await staffname.syncAllNicknames(guild, store, { gapMs: 0 });
+  assert.equal(blocked.updated, 0);
+  assert.ok(blocked.failed.length >= 2, 'every staff rename is reported as blocked');
+  assert.match(blocked.failed[0].reason, /Manage Nicknames/);
+});
+
+test('!staffname rebuilds names and refuses non-admins', async () => {
+  const { guild, settings, person } = bulkRig();
+  const staff = person('a', ['staff', 'mod'], 'Slash');
+  guild.members.fetch = async () => new Map([['a', staff]]);
+  const store = { guild: () => settings, save: () => {} };
+
+  const denied = [];
+  await staffname.handleMessage(
+    {
+      guild,
+      content: '!staffname',
+      member: { permissions: { has: () => false } },
+      reply: async (payload) => denied.push(payload),
+    },
+    { store },
+  );
+  assert.match(denied[0].embeds[0].data.description, /Manage Server/);
+  assert.equal(staff.renamed, undefined);
+
+  const edits = [];
+  const progress = { edit: async (payload) => edits.push(payload) };
+  await staffname.handleMessage(
+    {
+      guild,
+      content: '!staffnames',
+      member: { permissions: { has: () => true } },
+      reply: async () => progress,
+    },
+    { store },
+  );
+  assert.equal(staff.renamed, 'ᴍᴏᴅ Slash');
+  assert.equal(edits.length, 1, 'the progress message becomes the summary');
+  assert.equal(edits[0].embeds[0].data.title, 'Staff names rebuilt');
+  assert.match(edits[0].embeds[0].data.description, /Staff renamed:\*\* 1/);
+
+  settings.staffRoleId = null;
+  const missing = [];
+  await staffname.handleMessage(
+    {
+      guild,
+      content: '!staffname',
+      member: { permissions: { has: () => true } },
+      reply: async (payload) => missing.push(payload),
+    },
+    { store },
+  );
+  assert.match(missing[0].embeds[0].data.description, /staff_role/);
+});
+
 test('nicknames follow the Name (count) template', () => {
   assert.equal(vouch.withCount('Slash', 4), 'Slash (4)');
   assert.equal(vouch.withCount('Slash (3)', 4), 'Slash (4)');

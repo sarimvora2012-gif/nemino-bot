@@ -39,6 +39,7 @@ const presence = require('./lib/presence');
 const rolefont = require('./lib/rolefont');
 const roleicons = require('./lib/roleicons');
 const roleping = require('./lib/roleping');
+const staffname = require('./lib/staffname');
 const scoreboard = require('./lib/scoreboard');
 const spawnerBoard = require('./lib/spawners');
 const staffguide = require('./lib/staffguide');
@@ -199,6 +200,9 @@ client.on(Events.MessageCreate, (message) => {
   rolefont
     .handleMessage(message, context)
     .catch((err) => console.error('[rolefont] Message handler failed:', err));
+  staffname
+    .handleMessage(message, context)
+    .catch((err) => console.error('[staffname] Message handler failed:', err));
   roleping
     .handleMessage(message, context)
     .catch((err) => console.error('[roleping] Message handler failed:', err));

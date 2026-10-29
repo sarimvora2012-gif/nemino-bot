@@ -217,6 +217,8 @@ Members click **Enter Giveaway** to join (one entry per member). When the durati
 
 The role options are Discord role pickers, so selecting them does not send a notification to the role. Both commands check the role hierarchy, refuse to change a member above the bot, and DM the member. The promotion/demotion card is posted in <#1528259332876275742> (`🔀ꜱᴛᴀꜰꜰ-ᴍᴏᴠᴇᴍᴇɴᴛ`) as a Components V2 card: small-caps kicker, large heading, an accent colour (green for promotion, yellow for demotion), the member's avatar and a compact stat block. The member also gets a matching V2 card in DMs. `/demote` removes the member's highest manageable role above the target; use `current_role` if it picks the wrong one. Protection and LOA roles are ignored by the automatic detection.
 
+**Applying it to staff who already have a role.** Promotions are the only thing that renames people automatically, so staff promoted before this existed — or renamed by hand — need one pass: **`!staffname`** (Manage Server). It renames every staff member, replaces a stale rank prefix with their current one, removes a prefix from anyone who is no longer staff, and leaves everyone else untouched. It reports how many changed and why any rename was refused, and it needs `/config set staff_role:@role` so the bot knows where the hierarchy starts. It runs at about three renames a second to stay clear of Discord's rate limit, so give it a moment on a big team.
+
 **Server names carry the rank.** After a promotion or demotion the bot renames the member so their staff rank sits in small caps in front of their normal name — `ᴍᴏᴅ Slash`, or `ᴍᴏᴅ Slash (4)` when they have vouches. The rank is their highest role at or above the configured staff role; bot roles, the LOA tag, the kick-protection tag and integration-managed roles are skipped. A promotion swaps the prefix (`ᴍᴏᴅ` → `ꜱᴇɴɪᴏʀ ᴍᴏᴅ`), and dropping below staff removes it. The prefix and their own name are kept separate, so the rank changes and the name never gets restyled. If Discord refuses the rename, the confirmation tells you why (missing **Manage Nicknames**, bot role too low, or the server owner).
 
 ### Kick protection (admin only)
@@ -484,6 +486,7 @@ The guide covers only what staff need day to day: tickets, applications, giveawa
 | `!pingrole staff` / `!pr staff` | Ping a fancy-named role using normal letters (staff) |
 | `!vouchsetup` | Post the vouch panel (admin) |
 | `!stafffont [@role]` | Rename the staff roles into small caps (Manage Server) |
+| `!staffname` | Put every staff member's rank in front of their name (Manage Server) |
 
 ## Project layout
 
@@ -543,7 +546,8 @@ All embeds are created through `embed()` in `src/lib/helpers.js`, which adds the
 | Bot can't change roles | Bot role must be above the role being assigned or removed (Server Settings → Roles) |
 | Promotion embed did not post | Check <#1528259332876275742> still exists and the bot can **View Channel** and **Send Messages** there |
 | `:vouch @user` does nothing | The channel name must contain “vouch”, or set it with `/config set vouch_channel:#channel`; the message must mention a member |
-| Nicknames are not updating | The bot's role needs **Manage Nicknames** and must be above the member's highest role; server owners cannot be renamed. Fix the permission, then run `!vouchresync` |
+| Nicknames are not updating | The bot's role needs **Manage Nicknames** and must be above the member's highest role; server owners cannot be renamed. Fix the permission, then run `!vouchresync` and `!staffname` |
+| Staff names have no rank in front | Promotions rename automatically, so existing staff need one `!staffname` run; it also needs `/config set staff_role:@role` |
 | A `_link` option says no channel found | The link must belong to this server and the bot must be able to see that channel |
 | A `_link` option says “not a channel link” | Copy it with right-click → **Copy Channel Link**; `<#channel>` and bare IDs work too |
 | `!stafffont` leaves top roles alone | Those roles sit at or above the bot's own role; drag the bot role above them and run it again |

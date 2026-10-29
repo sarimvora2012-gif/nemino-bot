@@ -1,9 +1,13 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
+const { embed, errorEmbed, infoEmbed, COLORS } = require('./helpers');
 const { toPlain, toSmallCaps } = require('./smallcaps');
 
 const MAX_NICKNAME = 32;
+const PREFIX_COMMANDS = new Set(['!staffname', '!staffnames']);
+// Discord throttles nickname edits per guild, so bulk renames are spaced out.
+const RENAME_GAP_MS = 350;
 
 /**
  * Roles that sit in the hierarchy but are not a rank: the bot/integration roles,
@@ -105,6 +109,121 @@ function renameBlocker(member, guild = member?.guild) {
   return null;
 }
 
+// The delay is awaited, so it must never be unref'd: an unref'd timer does not
+// keep the event loop alive when it is the only pending work.
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Rebuilds every staff nickname, for staff who were promoted before this
+ * existed or renamed by hand. Members who are not staff and carry no prefix of
+ * ours are left completely alone.
+ */
+async function syncAllNicknames(guild, store, { gapMs = RENAME_GAP_MS } = {}) {
+  const settings = store.guild(guild.id);
+  const result = { staff: 0, updated: 0, already: 0, cleared: 0, untouched: 0, failed: [] };
+  const roles = rankRoles(guild, settings);
+  const prefixes = roles.map((role) => toSmallCaps(role.name ?? '').trim());
+  const members = await guild.members.fetch().catch(() => guild.members.cache);
+
+  for (const member of members?.values?.() ?? []) {
+    if (member?.user?.bot) continue;
+    const role = staffRankRole(member, settings, guild);
+    const { name } = splitCount(member.displayName ?? '');
+    // A prefix this bot wrote earlier is worth removing for someone who left staff.
+    const carriesPrefix = stripRank(name, prefixes) !== name;
+    if (!role && !carriesPrefix) {
+      result.untouched += 1;
+      continue;
+    }
+
+    result.staff += 1;
+    const synced = await syncNickname(member, settings, guild);
+    if (!synced.ok) {
+      result.failed.push({ member, reason: synced.reason });
+      continue;
+    }
+    if (!synced.changed) {
+      result.already += 1;
+      continue;
+    }
+    if (role) result.updated += 1;
+    else result.cleared += 1;
+    if (gapMs) await wait(gapMs);
+  }
+
+  return result;
+}
+
+function summaryEmbed(guild, result) {
+  const lines = [
+    `**Staff renamed:** ${result.updated}`,
+    `**Already correct:** ${result.already}`,
+  ];
+  if (result.cleared) lines.push(`**Prefix removed:** ${result.cleared}`);
+  lines.push(`**Members left alone:** ${result.untouched}`);
+
+  if (result.failed.length) {
+    const shown = result.failed.slice(0, 8).map((entry) => `• ${entry.member} — ${entry.reason}`);
+    if (result.failed.length > shown.length) shown.push(`• …and ${result.failed.length - shown.length} more`);
+    lines.push('', '**Could not rename:**', ...shown);
+  }
+
+  return embed({
+    title: 'Staff names rebuilt',
+    description: lines.join('\n'),
+    color: result.failed.length ? COLORS.warning : COLORS.success,
+    footer: guild?.name,
+  });
+}
+
+/**
+ * `!staffname` — puts every staff member's rank in front of their name. The
+ * command exists because promotions before this feature, or names edited by
+ * hand, never went through `syncNickname`.
+ */
+async function handleMessage(message, { store }) {
+  const content = String(message.content ?? '').trim();
+  const command = content.split(/\s+/)[0].toLowerCase();
+  if (!PREFIX_COMMANDS.has(command)) return;
+
+  const guild = message.guild;
+  if (!guild) return;
+
+  if (!message.member?.permissions?.has?.(PermissionFlagsBits.ManageServer)) {
+    await message
+      .reply({
+        embeds: [errorEmbed('You need **Manage Server** to rebuild staff names.', 'Missing permissions')],
+      })
+      .catch(() => {});
+    return;
+  }
+
+  const settings = store.guild(guild.id);
+  if (!settings.staffRoleId) {
+    await message
+      .reply({
+        embeds: [
+          errorEmbed(
+            'Set the staff role first with `/config set staff_role:@role` — the rank in front of a name comes from the roles above it.',
+            'No staff role set',
+          ),
+        ],
+      })
+      .catch(() => {});
+    return;
+  }
+
+  const progress = await message
+    .reply({ embeds: [infoEmbed('Rebuilding staff names…', 'This takes a few seconds.')] })
+    .catch(() => null);
+  const result = await syncAllNicknames(guild, store);
+  const payload = { embeds: [summaryEmbed(guild, result)] };
+  if (progress) await progress.edit(payload).catch(() => {});
+  else await message.reply(payload).catch(() => {});
+}
+
 /** Applies the rank prefix. Safe to call after any role change. */
 async function syncNickname(member, settings, guild = member?.guild) {
   const wanted = nicknameFor(member, settings, guild);
@@ -126,6 +245,9 @@ async function syncNickname(member, settings, guild = member?.guild) {
 module.exports = {
   MAX_NICKNAME,
   NOT_A_RANK,
+  PREFIX_COMMANDS,
+  RENAME_GAP_MS,
+  handleMessage,
   isRankRole,
   nicknameFor,
   rankRoles,
@@ -133,5 +255,7 @@ module.exports = {
   splitCount,
   staffRankRole,
   stripRank,
+  summaryEmbed,
+  syncAllNicknames,
   syncNickname,
 };
