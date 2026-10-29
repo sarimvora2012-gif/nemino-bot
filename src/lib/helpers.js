@@ -18,6 +18,17 @@ const COLORS = {
 };
 
 const EMBED_SIGNATURE = 'made by seraphum';
+const TROPHY_EMOJI_NAME = 'trophy';
+
+/**
+ * The server's own trophy emoji, used on every leaderboard. Falls back to the
+ * plain emoji when the custom one has not been uploaded (or was deleted).
+ */
+function trophyEmoji(guild) {
+  const emoji = guild?.emojis?.cache?.find?.((entry) => entry.name === TROPHY_EMOJI_NAME);
+  if (!emoji) return '🏆';
+  return `<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>`;
+}
 
 /**
  * Builds a classic embed. Timestamps are off by default — Discord already shows
@@ -120,6 +131,8 @@ async function safeDM(user, payload) {
 module.exports = {
   COLORS,
   EMBED_SIGNATURE,
+  TROPHY_EMOJI_NAME,
+  trophyEmoji,
   embed,
   successEmbed,
   errorEmbed,

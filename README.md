@@ -9,7 +9,7 @@ A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **a
 | 🎫 Tickets | Button panel, private ticket channels, claim, add/remove members, close with transcript saved to a staff channel |
 | 📝 Applications | Custom questions, Apply button, questions answered by DM with a 60-minute limit and `cancel`, staff Accept/Deny with a reason, a 2-week reapply cooldown after denial, optional role on acceptance, and an **Open ticket** button to talk with the applicant |
 | 🎁 Giveaways | `/giveaway create`, entry button, automatic winner draw, Claim Prize button, private claim ticket with the host and forwarded winner message |
-| 📈 Promotions & demotions | `/promote` and `/demote` take the member and the exact role directly, with hierarchy checks and audit logs; selecting the role never sends a notification |
+| 📈 Promotions & demotions | `/promote` and `/demote` take the member and the exact role directly, with hierarchy checks and audit logs; selecting the role never sends a notification, and the member's server name picks up their new rank in small caps |
 | 🛡️ Kick protection | `/protect add` marks chosen members so only admins can kick them; `/kick` enforces it and is available to staff with **Kick Members** |
 | ⚠️ Strikes | `!strike @user reason` issues a strike, `!strikeremove @user reason` voids their latest one, `!strike list` is open to staff and ID-based removal is admin-only; cards post in the staff strikes channel and the member is DMed |
 | ✅ Activity checks | Admin-only reaction checkmark checks with configurable duration, automatic schedules, LOA exemptions and missing-staff reminders |
@@ -17,7 +17,7 @@ A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **a
 | 💡 Suggestions | `/suggestion` posts to the suggestion channel; staff vote with ✅ Approve / ❌ Reject buttons |
 | 🦴 Spawner prices | `/setspawnerprice` sets buying and selling prices per spawner kind; one wide board in the spawner prices channel updates itself, with Buy/Sell ticket buttons |
 | 🎥 Videos & streams | `/upload video link:<url>` announces a new video and pings the Nemo role; `/golive` pings the server with the stream title; the bot also watches youtube.com/@RealNemino and announces when it goes live |
-| 🎟️ Vouches | `:vouch @user` in a vouch channel, `Name (count)` nicknames, a how-to panel that is reposted so it stays newest, `/vouch leaderboard` and owner-only `!vouchadd` |
+| 🎟️ Vouches | `:vouch @user` in a vouch channel, `Name (count)` nicknames (behind the staff rank, e.g. `ᴍᴏᴅ Name (count)`), a how-to panel that is reposted so it stays newest, `/vouch leaderboard` and owner-only `!vouchadd` |
 | ⏳ Timeouts | `!to @user 10m [reason]` with hierarchy checks, a DM to the member and an entry in the moderation log |
 | 🧹 Purge | `!purge 25` bulk-deletes messages — 50 per command for staff, up to 1000 for the owner and co-owner |
 | 🛡️ AutoMod | Scam/phishing detection, invite and link blocking, ad filtering, anti-spam, mass-mention protection and dangerous-file blocking |
@@ -170,7 +170,21 @@ Every channel setting has a link twin right next to its picker, so you can paste
 | `/ticket add @user` / `/ticket remove @user` | Staff | Manage who can see the ticket |
 | `/ticket close [reason]` | Staff or ticket owner | Saves a transcript, logs it, DMs the owner, deletes the channel |
 
-Closing from the 🔒 button asks for an optional reason. Transcripts are written to `transcripts/` and uploaded to the transcript channel (or log channel).
+Closing from the 🔒 button asks for an optional reason. Transcripts are written to `transcripts/` and uploaded to the transcript channel (or log channel) as a `.txt` file. Each upload is a plain message with a summary block above the file:
+
+```text
+📄 Transcript for ticket #0001 — 2 messages
+```
+```text
+Ticket #0001
+Opened by: 1061471321801895987
+Created: 2026-10-24T10:45:32.445Z
+Closed: 2026-10-24T10:59:55.550Z
+Channel: #ticket-0001
+============================================================
+```
+
+The same block is the header of the `.txt` file, so the message and the file match.
 
 ### Applications
 | Command | Description |
@@ -201,6 +215,8 @@ Members click **Enter Giveaway** to join (one entry per member). When the durati
 | `/demote user:@user role:@role [current_role:@role] [reason]` | Moves the member down to that role and removes their current higher role |
 
 The role options are Discord role pickers, so selecting them does not send a notification to the role. Both commands check the role hierarchy, refuse to change a member above the bot, and DM the member. The promotion/demotion card is posted in <#1528259332876275742> (`🔀ꜱᴛᴀꜰꜰ-ᴍᴏᴠᴇᴍᴇɴᴛ`) as a Components V2 card: small-caps kicker, large heading, an accent colour (green for promotion, yellow for demotion), the member's avatar and a compact stat block. The member also gets a matching V2 card in DMs. `/demote` removes the member's highest manageable role above the target; use `current_role` if it picks the wrong one. Protection and LOA roles are ignored by the automatic detection.
+
+**Server names carry the rank.** After a promotion or demotion the bot renames the member so their staff rank sits in small caps in front of their normal name — `ᴍᴏᴅ Slash`, or `ᴍᴏᴅ Slash (4)` when they have vouches. The rank is their highest role at or above the configured staff role; bot roles, the LOA tag, the kick-protection tag and integration-managed roles are skipped. A promotion swaps the prefix (`ᴍᴏᴅ` → `ꜱᴇɴɪᴏʀ ᴍᴏᴅ`), and dropping below staff removes it. The prefix and their own name are kept separate, so the rank changes and the name never gets restyled. If Discord refuses the rename, the confirmation tells you why (missing **Manage Nicknames**, bot role too low, or the server owner).
 
 ### Kick protection (admin only)
 `/protect` requires **Manage Server**. The bot creates a no-permission **🛡️ ᴋɪᴄᴋ ᴘʀᴏᴛᴇᴄᴛᴇᴅ** role and keeps it just below its own highest role, above the staff roles. Non-admin staff cannot kick protected members with `/kick` or through the normal Discord member menu. Admins can still kick them via `/kick`.
@@ -294,7 +310,7 @@ A vouch message is read from any channel whose name contains “vouch” (`✅�
 
 When a vouch is counted the bot:
 
-1. Adds one vouch and updates the member's nickname to `Name (count)`.
+1. Adds one vouch and updates the member's nickname to `Name (count)` — or `ᴍᴏᴅ Name (count)` for staff, keeping the rank prefix in front.
 2. Posts a small confirmation that deletes itself after 3 seconds.
 3. Deletes the previous panel and reposts it, so the how-to-vouch line is always at the bottom of the channel. Nothing is pinned.
 
@@ -309,6 +325,8 @@ Self-vouches and vouches for bots are refused. `!vouchadd` works for the server 
 | --- | --- |
 | `/level rank [user]` | A member's level, rank, XP and progress bar |
 | `/level top` | The 10 members with the most XP |
+
+Every leaderboard (`/level top` and `/vouch leaderboard`) uses the server's own **trophy** emoji when one exists, falling back to 🏆 if it is missing.
 | `/level settings [enabled] [announce] [announce_channel] [xp_min] [xp_max] [cooldown]` | View or change XP earning (owner and co-owner only) |
 | `/level setxp user:@member xp:<n>` | Set a member's total XP — owner and co-owner only |
 
@@ -453,6 +471,7 @@ src/
   store.js              JSON persistence
   lib/helpers.js        embeds, staff checks, hierarchy helpers, logging
   lib/vouch.js          :vouch counting, nickname counts, pinned panel, leaderboard
+  lib/staffname.js      staff rank prefix in member nicknames, applied on promotion
   lib/timeout.js        `!to @user <time>` timeout command and moderation log
   lib/purge.js          `!purge <amount>` bulk delete with staff and owner caps
   lib/roles.js          owner / co-owner role check shared by purge and levels

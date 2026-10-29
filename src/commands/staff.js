@@ -9,6 +9,7 @@ const {
   COLORS,
 } = require('../lib/helpers');
 const v2 = require('../lib/v2');
+const staffname = require('../lib/staffname');
 const { toSmallCaps } = require('../lib/smallcaps');
 
 const SILENT_MENTIONS = { parse: [], users: [], roles: [] };
@@ -316,6 +317,15 @@ async function finish(interaction, {
   color,
 }) {
   const isPromote = action === 'Promoted';
+
+  // The new rank becomes part of their server name: `ᴍᴏᴅ Name`.
+  const renamed = await staffname
+    .syncNickname(member, settings, guild)
+    .catch((err) => ({ ok: false, changed: false, reason: err.message }));
+  if (!renamed.ok) {
+    console.warn(`[staff] Could not apply the rank to ${member.user?.tag ?? member.id}: ${renamed.reason}`);
+  }
+
   const card = movementCard({
     guild,
     member,
@@ -337,8 +347,9 @@ async function finish(interaction, {
     }
 
     await channel.send({ ...card, allowedMentions: SILENT_MENTIONS });
+    const renameNote = renamed.ok ? '' : `\n⚠️ I could not rename them: ${renamed.reason}`;
     await interaction.reply({
-      content: `${isPromote ? '🎉' : '📉'} ${action} ${member.user.tag} to ${targetRole.name}. Posted in <#${STAFF_MOVEMENT_CHANNEL_ID}>.`,
+      content: `${isPromote ? '🎉' : '📉'} ${action} ${member.user.tag} to ${targetRole.name}. Posted in <#${STAFF_MOVEMENT_CHANNEL_ID}>.${renameNote}`,
       flags: MessageFlags.Ephemeral,
       allowedMentions: SILENT_MENTIONS,
     });

@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, successEmbed, sendLog, COLORS } = require('./helpers');
+const { embed, errorEmbed, successEmbed, sendLog, COLORS, trophyEmoji } = require('./helpers');
 const v2 = require('./v2');
 const { toSmallCaps } = require('./smallcaps');
 
@@ -235,7 +235,7 @@ function leaderboardCard(guild, settings) {
   return v2.card({
     accent: COLORS.brand,
     kicker: toSmallCaps('vouch leaderboard'),
-    title: '🏆 TOP VOUCHED',
+    title: `${trophyEmoji(guild)} TOP VOUCHED`,
     subtitle: `${total} vouch${total === 1 ? '' : 'es'} given in this server`,
     description: lines.length ? lines.join('\n') : '> 🌱 No vouches yet — be the first to vouch!',
     footer: guild.name,

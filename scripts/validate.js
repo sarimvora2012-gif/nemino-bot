@@ -1487,6 +1487,131 @@ test('vouch channels are detected by id or name', () => {
     'the staff vouch channel is configured separately',
   );
 });
+const staffname = require('../src/lib/staffname');
+function nameRig() {
+  const roles = [
+    { id: 'elite', name: 'Level 25 Elite', position: 16 },
+    { id: 'staff', name: 'ꜱᴛᴀꜰꜰ', position: 28 },
+    { id: 'helper', name: 'ʜᴇʟᴘᴇʀ', position: 30 },
+    { id: 'mod', name: 'ᴍᴏᴅ', position: 34 },
+    { id: 'senior', name: 'ꜱᴇɴɪᴏʀ ᴍᴏᴅ', position: 35 },
+    { id: 'admin', name: 'ᴀᴅᴍɪɴ', position: 36 },
+    { id: 'bots', name: 'ʙᴏᴛꜱ', position: 37 },
+    { id: 'managed', name: 'ᴍᴀɴᴀɢᴇʀ', position: 38, managed: true },
+    { id: 'loa', name: 'ʟᴏᴀ', position: 39 },
+  ];
+  const cache = new Map(roles.map((role) => [role.id, role]));
+  const guild = {
+    id: 'g1',
+    ownerId: 'owner',
+    roles: { cache },
+    members: {
+      me: { permissions: { has: () => true }, roles: { highest: { position: 50 } } },
+    },
+  };
+  const settings = { staffRoleId: 'staff', activity: { loaRoleId: 'loa' } };
+  const member = (roleIds, displayName) => {
+    const held = roleIds.map((id) => cache.get(id)).filter(Boolean);
+    const built = {
+      id: 'u1',
+      displayName,
+      user: { username: 'glacial' },
+      guild,
+      roles: {
+        cache: { has: (id) => roleIds.includes(id), values: () => held,
+        },
+        highest: { position: Math.max(0, ...held.map((role) => role.position)) },
+      },
+      setNickname: async (name) => {
+        built.renamed = name;
+      },
+    };
+    return built;
+  };
+  return { guild, settings, member };
+}
+test('staff names show their rank in small caps before their normal name', () => {
+  const { guild, settings, member } = nameRig();
+  assert.equal(
+    staffname.nicknameFor(member(['staff', 'mod'], 'Slash'), settings, guild),
+    'ᴍᴏᴅ Slash',
+  );
+  assert.equal(
+    staffname.nicknameFor(member(['staff', 'helper'], 'Slash'), settings, guild),
+    'ʜᴇʟᴘᴇʀ Slash',
+    'the highest held rank wins',
+  );
+  assert.equal(
+    staffname.nicknameFor(member(['staff'], 'Slash'), settings, guild),
+    'ꜱᴛᴀꜰꜰ Slash',
+  );
+});
+test('the vouch count survives a rank prefix', () => {
+  const { guild, settings, member } = nameRig();
+  assert.equal(
+    staffname.nicknameFor(member(['staff', 'mod'], 'Slash (4)'), settings, guild),
+    'ᴍᴏᴅ Slash (4)',
+  );
+  // Running it again must not stack prefixes.
+  assert.equal(
+    staffname.nicknameFor(member(['staff', 'mod'], 'ᴍᴏᴅ Slash (4)'), settings, guild),
+    'ᴍᴏᴅ Slash (4)',
+  );
+});
+test('a promotion replaces the old rank, a demotion removes it', () => {
+  const { guild, settings, member } = nameRig();
+  assert.equal(
+    staffname.nicknameFor(member(['staff', 'senior'], 'ᴍᴏᴅ Slash'), settings, guild),
+    'ꜱᴇɴɪᴏʀ ᴍᴏᴅ Slash',
+    'a promotion swaps the prefix',
+  );
+  assert.equal(
+    staffname.nicknameFor(member(['elite'], 'ᴍᴏᴅ Slash'), settings, guild),
+    'Slash',
+    'losing the staff role strips the prefix',
+  );
+  assert.equal(
+    staffname.nicknameFor(member(['elite'], 'Slash'), settings, guild),
+    null,
+    'a plain member is never renamed',
+  );
+});
+test('LOA, bot and managed roles are never used as a rank', () => {
+  const { guild, settings, member } = nameRig();
+  assert.equal(
+    staffname.nicknameFor(member(['staff', 'mod', 'loa'], 'Slash'), settings, guild),
+    'ᴍᴏᴅ Slash',
+    'the LOA tag is skipped',
+  );
+  assert.equal(
+    staffname.nicknameFor(member(['staff', 'mod', 'bots', 'managed'], 'Slash'), settings, guild),
+    'ᴍᴏᴅ Slash',
+    'bot and managed roles are skipped',
+  );
+});
+test('a long name is trimmed to the nickname limit', () => {
+  const { guild, settings, member } = nameRig();
+  const long = staffname.nicknameFor(
+    member(['staff', 'mod'], 'a-very-long-display-name-here (7)'),
+    settings,
+    guild,
+  );
+  assert.ok(long.length <= 32, `${long} is ${long.length} characters`);
+  assert.ok(long.startsWith('ᴍᴏᴅ '));
+  assert.ok(long.endsWith('(7)'));
+});
+test('syncNickname renames the member once and reports it', async () => {
+  const { guild, settings, member } = nameRig();
+  const person = member(['staff', 'mod'], 'Slash');
+  const result = await staffname.syncNickname(person, settings, guild);
+  assert.equal(result.changed, true);
+  assert.equal(person.renamed, 'ᴍᴏᴅ Slash');
+
+  const again = member(['staff', 'mod'], 'ᴍᴏᴅ Slash');
+  const second = await staffname.syncNickname(again, settings, guild);
+  assert.equal(second.changed, false, 'no API call when the name is already right');
+  assert.equal(again.renamed, undefined);
+});
 test('nicknames follow the Name (count) template', () => {
   assert.equal(vouch.withCount('Slash', 4), 'Slash (4)');
   assert.equal(vouch.withCount('Slash (3)', 4), 'Slash (4)');
@@ -2742,6 +2867,77 @@ test('ticket channels are named after the member, safely', () => {
   assert.equal(categoryKey('spawner-buy'), 'spawner');
   assert.equal(categoryKey('spawner-sell'), 'spawner');
   assert.equal(categoryKey('application'), 'application');
+});
+
+test('transcripts post a summary block with the .txt file', () => {
+  const { transcriptContent } = require(path.join(root, 'src', 'commands', 'ticket'));
+  const ticket = {
+    number: 1,
+    userId: '1061471321801895987',
+    createdAt: '2026-10-24T10:45:32.445Z',
+  };
+  const transcript = {
+    messageCount: 2,
+    closedAt: '2026-10-24T10:59:55.550Z',
+    channelName: 'ticket-0001',
+    summary: [
+      'Ticket #0001',
+      'Opened by: 1061471321801895987',
+      'Created: 2026-10-24T10:45:32.445Z',
+      'Closed: 2026-10-24T10:59:55.550Z',
+      'Channel: #ticket-0001',
+      '='.repeat(60),
+    ],
+  };
+  const content = transcriptContent(ticket, transcript);
+  const lines = content.split('\n');
+
+  assert.equal(lines[0], '📄 Transcript for ticket #0001 — 2 messages');
+  assert.equal(lines[1], '```');
+  assert.equal(lines[2], 'Ticket #0001');
+  assert.ok(lines.includes('Opened by: 1061471321801895987'));
+  assert.ok(lines.includes('Channel: #ticket-0001'));
+  assert.equal(lines[lines.length - 2], '='.repeat(60));
+  assert.equal(lines[lines.length - 1], '```');
+
+  const single = transcriptContent(
+    { ...ticket, number: 12 },
+    { ...transcript, messageCount: 1 },
+  );
+  assert.ok(single.startsWith('📄 Transcript for ticket #0012 — 1 message\n'));
+});
+test('leaderboards use the custom trophy emoji', () => {
+  const { trophyEmoji } = require('../src/lib/helpers');
+  const guild = {
+    emojis: {
+      cache: {
+        find: (predicate) =>
+          [
+            { id: '1', name: 'crown', animated: false },
+            { id: '1565217609174098052', name: 'trophy', animated: true },
+          ].find(predicate),
+      },
+    },
+  };
+  assert.equal(trophyEmoji(guild), '<a:trophy:1565217609174098052>');
+  assert.equal(trophyEmoji({ emojis: { cache: { find: () => undefined } } }), '🏆');
+  assert.equal(trophyEmoji(null), '🏆');
+
+  const levels = require('../src/lib/levels');
+  const vouchBoard = require('../src/lib/vouch');
+  const text = (card) =>
+    card.components[0]
+      .toJSON()
+      .components.map((component) => component.content ?? '')
+      .join('\n');
+  assert.match(
+    text(levels.leaderboardCard(guild, { levels: { users: { a: { xp: 500 } } } })),
+    /<a:trophy:1565217609174098052> TOP MEMBERS/,
+  );
+  assert.match(
+    text(vouchBoard.leaderboardCard(guild, { vouches: { a: 3 } })),
+    /<a:trophy:1565217609174098052> TOP VOUCHED/,
+  );
 });
 
 Promise.all(pendingTests).then(() => {

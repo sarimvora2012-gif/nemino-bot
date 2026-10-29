@@ -517,6 +517,31 @@ async function openTicket(interaction, { store }) {
   ]);
 }
 
+const TRANSCRIPT_RULE = '='.repeat(60);
+
+/**
+ * The message that carries a transcript: a summary block in the same layout as
+ * the .txt file, then the file itself as an attachment.
+ */
+function transcriptContent(ticket, transcript) {
+  const number = String(ticket.number).padStart(4, '0');
+  const count = transcript.messageCount;
+  const summary = transcript.summary ?? [
+    `Ticket #${number}`,
+    `Opened by: ${ticket.userId}`,
+    `Created: ${ticket.createdAt}`,
+    `Closed: ${transcript.closedAt}`,
+    `Channel: #${transcript.channelName}`,
+    TRANSCRIPT_RULE,
+  ];
+  return [
+    `📄 Transcript for ticket #${number} — ${count} message${count === 1 ? '' : 's'}`,
+    '```',
+    ...summary,
+    '```',
+  ].join('\n');
+}
+
 /** Builds a plain-text transcript of the ticket channel. */
 async function buildTranscript(channel, ticket) {
   const collected = [];
@@ -530,15 +555,16 @@ async function buildTranscript(channel, ticket) {
   }
   collected.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
-  const lines = [
+  const closedAt = new Date().toISOString();
+  const summary = [
     `Ticket #${String(ticket.number).padStart(4, '0')}`,
     `Opened by: ${ticket.userId}`,
     `Created: ${ticket.createdAt}`,
-    `Closed: ${new Date().toISOString()}`,
+    `Closed: ${closedAt}`,
     `Channel: #${channel.name}`,
-    '='.repeat(70),
-    '',
+    TRANSCRIPT_RULE,
   ];
+  const lines = [...summary, ''];
 
   for (const message of collected) {
     const author = message.author ? `${message.author.tag} (${message.author.id})` : 'Unknown';
@@ -559,7 +585,13 @@ async function buildTranscript(channel, ticket) {
     `ticket-${String(ticket.number).padStart(4, '0')}-${ticket.userId}.txt`,
   );
   fs.writeFileSync(filePath, lines.join('\n'));
-  return { filePath, messageCount: collected.length };
+  return {
+    filePath,
+    messageCount: collected.length,
+    summary,
+    closedAt,
+    channelName: channel.name,
+  };
 }
 
 const DELETE_DELAY_MS = 4000;
@@ -666,8 +698,9 @@ async function closeTicket(client, channel, ticket, settings, { closedBy, reason
         name: path.basename(transcript.filePath),
       });
       await transcriptChannel.send({
-        content: `📄 Transcript for ticket #${String(ticket.number).padStart(4, '0')} — ${transcript.messageCount} messages`,
+        content: transcriptContent(ticket, transcript),
         files: [file],
+        allowedMentions: { parse: [] },
       });
     } catch (err) {
       console.error('[ticket] Failed to upload transcript:', err.message);
@@ -900,4 +933,6 @@ module.exports = {
   canCloseTicket,
   deleteTicketChannel,
   sweepClosedTickets,
+  transcriptContent,
+  buildTranscript,
 };

@@ -1,6 +1,6 @@
 'use strict';
 
-const { COLORS } = require('./helpers');
+const { COLORS, trophyEmoji } = require('./helpers');
 const { toSmallCaps } = require('./smallcaps');
 const v2 = require('./v2');
 
@@ -147,7 +147,7 @@ function leaderboardCard(guild, settings) {
   return v2.card({
     accent: COLORS.brand,
     kicker: toSmallCaps('levels'),
-    title: '🏆 TOP MEMBERS',
+    title: `${trophyEmoji(guild)} TOP MEMBERS`,
     subtitle: `${Object.keys(settings.levels?.users ?? {}).length} members earning XP`,
     description: lines.length ? lines.join('\n') : '> 🌱 No XP earned yet — start chatting!',
     footer: guild.name,
