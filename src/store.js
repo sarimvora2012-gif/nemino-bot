@@ -27,6 +27,8 @@ function defaultGuild() {
     vouchAdminRoleId: null,
     // Role pinged when AutoMod catches a suspicious link; falls back to the staff role.
     automodAlertRoleId: null,
+    // Role pinged when staff miss an activity check; falls back to the AutoMod alert role.
+    highStaffRoleId: null,
     vouches: {},
     vouchGiven: {},
     vouchPanels: {},

@@ -71,6 +71,7 @@ async function execute(interaction, { client }) {
           '`/activity end` — end the running check early',
           '`/activity status` — current check and schedule',
           '`/activity auto enabled:true interval:7d duration:48h channel:#staff` — schedule checks',
+          'When a check closes, the high staff role is pinged with everyone who missed it',
           'Requires **Server Members Intent** in the Developer Portal',
         ].join('\n'),
       },

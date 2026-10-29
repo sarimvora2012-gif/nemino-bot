@@ -193,11 +193,13 @@ const data = [
           opt
             .setName('vouch_admin_role')
             .setDescription('Extra role allowed to use !vouchadd (owner and co-owner always can)'),
+        )        .addRoleOption((opt) =>
+          opt.setName('automod_alert_role')
+            .setDescription('Role pinged when AutoMod catches a suspicious link (defaults to the staff role)'),
         )
         .addRoleOption((opt) =>
-          opt
-            .setName('automod_alert_role')
-            .setDescription('Role pinged when AutoMod catches a suspicious link (defaults to the staff role)'),
+          opt.setName('high_staff_role')
+            .setDescription('Role pinged when staff miss an activity check (defaults to the AutoMod alert role)'),
         ),
     ),
 ];
@@ -240,6 +242,11 @@ async function execute(interaction, { store }) {
           inline: true,
         },
         {
+          name: 'High staff role (activity results)',
+          value: role(settings.highStaffRoleId ?? settings.automodAlertRoleId),
+          inline: true,
+        },
+        {
           name: 'Automatic activity checks',
           value: settings.activity.enabled ? 'Enabled — `/activity status`' : 'Disabled',
           inline: true,
@@ -258,6 +265,7 @@ async function execute(interaction, { store }) {
   const loaRole = interaction.options.getRole('loa_role');
   const vouchAdminRole = interaction.options.getRole('vouch_admin_role');
   const automodAlertRole = interaction.options.getRole('automod_alert_role');
+  const highStaffRole = interaction.options.getRole('high_staff_role');
 
   if (staffRole) {
     settings.staffRoleId = staffRole.id;
@@ -278,6 +286,10 @@ async function execute(interaction, { store }) {
   if (automodAlertRole) {
     settings.automodAlertRoleId = automodAlertRole.id;
     updates.push(`AutoMod link alerts ping → ${automodAlertRole}`);
+  }
+  if (highStaffRole) {
+    settings.highStaffRoleId = highStaffRole.id;
+    updates.push(`Missed activity checks ping → ${highStaffRole}`);
   }
 
   // Channel settings: the picker, the pasted link, or exactly one of them.

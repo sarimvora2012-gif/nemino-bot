@@ -1010,6 +1010,100 @@ test('the 25% reminder pings only the members who have not reacted', async () =>
   assert.ok(sent.every((content) => content.length < 2000 && !content.includes('<@&')));
 });
 
+test('activity results resolve the high staff role', () => {
+  const roles = new Map([
+    ['staff', { id: 'staff', name: 'ꜱᴛᴀꜰꜰ' }],
+    ['high', { id: 'high', name: 'ʜɪɢʜ ꜱᴛᴀꜰꜰ' }],
+    ['alert', { id: 'alert', name: 'ᴀʟᴇʀᴛꜱ' }],
+  ]);
+  const guild = {
+    id: 'g1',
+    roles: {
+      cache: {
+        get: (id) => roles.get(id) ?? null,
+        find: (predicate) => [...roles.values()].find(predicate),
+      },
+    },
+  };
+  assert.equal(activity.highStaffRoleFor(guild, { highStaffRoleId: 'high' }).id, 'high');
+  assert.equal(
+    activity.highStaffRoleFor(guild, { automodAlertRoleId: 'alert' }).id,
+    'alert',
+    'the AutoMod alert role is the fallback',
+  );
+  assert.equal(
+    activity.highStaffRoleFor(guild, {}).id,
+    'high',
+    'a high-staff role is found by name in any font',
+  );
+  assert.equal(
+    activity.highStaffRoleFor({ id: 'g2', roles: { cache: { get: () => null, find: () => undefined } } }, {}),
+    null,
+  );
+});
+test('the results card pings high staff and lists who missed the check', async () => {
+  const sent = [];
+  const channel = {
+    isTextBased: () => true,
+    send: async (payload) => {
+      sent.push(payload);
+      return {};
+    },
+  };
+  const guild = {
+    id: 'g1',
+    iconURL: () => null,
+    roles: { cache: { get: () => ({ id: 'high' }), find: () => null } },
+  };
+  const settings = { highStaffRoleId: 'high' };
+  const cardText = (payload) =>
+    payload.components[0]
+      .toJSON()
+      .components.map((component) => component.content ?? '')
+      .join('\n');
+
+  const count = await activity.postResults(
+    channel,
+    guild,
+    settings,
+    { requiredIds: ['1', '2', '3'], loaIds: ['9'] },
+    ['2', '3'],
+  );
+  assert.equal(count, 1);
+  const text = cardText(sent[0]);
+  assert.ok(text.includes('<@&high>'), 'the high staff role is mentioned');
+  assert.ok(text.includes('<@2>') && text.includes('<@3>'), 'every missed member is listed');
+  assert.ok(!text.includes('<@1>'), 'members who reacted are not listed');
+  assert.deepEqual(
+    sent[0].allowedMentions,
+    { parse: [], roles: ['high'] },
+    'only the role may notify, the member mentions are silent',
+  );
+
+  sent.length = 0;
+  const many = Array.from({ length: 250 }, (_, index) => `10${index}`);
+  const chunks = await activity.postResults(
+    channel,
+    guild,
+    settings,
+    { requiredIds: many, loaIds: [] },
+    many,
+  );
+  assert.ok(chunks > 1, 'a long list is split across cards');
+  assert.deepEqual(sent[1].allowedMentions, { parse: [] }, 'only the first card pings the role');
+  assert.ok(sent.every((payload) => cardText(payload).length < 4000));
+
+  sent.length = 0;
+  assert.equal(
+    await activity.postResults(channel, guild, settings, { requiredIds: ['1'], loaIds: [] }, []),
+    0,
+    'nothing is posted when everyone reacted',
+  );
+  assert.equal(sent.length, 0);
+
+  const source = fs.readFileSync(path.join(root, 'src', 'lib', 'activity.js'), 'utf8');
+  assert.ok(source.includes('await postResults(channel, guild, settings, check, missing)'));
+});
 test('check-ins are tracked from the gateway, not polled from Discord', () => {
   const guildId = 'g1';
   let saves = 0;

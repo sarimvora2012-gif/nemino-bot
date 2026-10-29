@@ -3,7 +3,7 @@
 const { Routes } = require('discord.js');
 const { embed, sendLog, COLORS } = require('./helpers');
 const v2 = require('./v2');
-const { toSmallCaps } = require('./smallcaps');
+const { toPlain, toSmallCaps } = require('./smallcaps');
 
 const CHECK_EMOJI = '✅';
 const DEFAULT_LOA_ROLE_ID = '1539905285789982781';
@@ -276,6 +276,86 @@ async function pingMissing(channel, missingIds) {
   );
 }
 
+/**
+ * The role told about missed checks: the configured high-staff role, then the
+ * AutoMod alert role (the same people), then any role whose name reads as
+ * "high staff" in whatever font it is written in.
+ */
+function highStaffRoleFor(guild, settings) {
+  for (const id of [settings?.highStaffRoleId, settings?.automodAlertRoleId]) {
+    if (!id) continue;
+    const role = guild?.roles?.cache?.get?.(id);
+    if (role) return role;
+  }
+  return (
+    guild?.roles?.cache?.find?.(
+      (role) =>
+        role?.id !== guild?.id &&
+        /high\s*staff/.test(toPlain(String(role?.name ?? '')).toLowerCase()),
+    ) ?? null
+  );
+}
+
+/** Mentions are split so one long list never exceeds a card's text limit. */
+function mentionChunks(ids, limit = 2500) {
+  const chunks = [];
+  let current = '';
+  for (const id of ids) {
+    const start = current ? ' · ' : '';
+    if (current.length + start.length + id.length + 4 > limit) {
+      chunks.push(current);
+      current = '';
+    }
+    current += `${current ? ' · ' : ''}<@${id}>`;
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+/**
+ * Posts the end-of-check results in the check channel: high staff are pinged
+ * once, and every member who never reacted is listed. Only the high-staff role
+ * mention is allowed to notify; the member mentions are shown, not pinged.
+ */
+async function postResults(channel, guild, settings, check, missing) {
+  if (!missing?.length || !channel?.isTextBased?.()) return 0;
+
+  const role = highStaffRoleFor(guild, settings);
+  const reacted = (check.requiredIds ?? []).filter((id) => !missing.includes(id)).length;
+  const chunks = mentionChunks(missing);
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const first = index === 0;
+    const card = v2.card({
+      accent: COLORS.danger,
+      kicker: toSmallCaps('activity check results'),
+      title: first ? '📋 MISSED THE CHECK' : '📋 MISSED THE CHECK — MORE',
+      description: first
+        ? `${role ? `<@&${role.id}>` : '**High staff**'}\n**${missing.length}** active staff did not react before the check closed.`
+        : '-# Continued',
+      stats: first
+        ? [
+            { emoji: '✅', label: 'Reacted', value: `${reacted}/${(check.requiredIds ?? []).length}` },
+            { emoji: '🌴', label: 'On LOA', value: `${(check.loaIds ?? []).length}` },
+            { emoji: '❌', label: 'Missed', value: `${missing.length}` },
+          ]
+        : [],
+      sections: [chunks[index]],
+      thumbnail: guild.iconURL?.({ size: 256 }) ?? undefined,
+      footer: 'Activity check',
+    });
+
+    await channel
+      .send({
+        ...card,
+        allowedMentions: first && role ? { parse: [], roles: [role.id] } : { parse: [] },
+      })
+      .catch((err) => console.error('[activity] Failed to post the results:', err.message));
+  }
+
+  return chunks.length;
+}
+
 /** Pings the staff role (LOA members included, they can ignore it) when a check starts. */
 async function pingStaffStarted(channel, activeIds, roleId) {
   await pingStaff(
@@ -364,6 +444,8 @@ async function refreshCheck(ctx, guild, { ping = false, final = false, reconcile
     };
     settings.activity.current = null;
     ctx.store.save();
+
+    await postResults(channel, guild, settings, check, missing);
 
     await sendLog(guild, settings, [
       embed({
@@ -648,7 +730,10 @@ module.exports = {
   CHECK_EMOJI,
   DEFAULT_LOA_ROLE_ID,
   AUTO_MIN_INTERVAL,
+  highStaffRoleFor,
+  mentionChunks,
   pingMissing,
+  postResults,
   pingStaffStarted,
   pingStaff,
   staffMention,
