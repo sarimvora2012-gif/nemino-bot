@@ -24,7 +24,9 @@ async function execute(interaction, { store }) {
   const settings = store.guild(guild.id);
   const type = interaction.options.getString('type') ?? 'levels';
 
-  await interaction.reply(scoreboard.ephemeralCard(guild, settings, { type }));
+  await interaction.reply(
+    scoreboard.ephemeralCard(guild, settings, { type, viewerId: interaction.user?.id }),
+  );
 }
 
 /**
@@ -38,7 +40,9 @@ async function handleButton(interaction, { store }) {
   const guild = interaction.guild;
   if (!guild) return;
 
-  await interaction.update(scoreboard.card(guild, store.guild(guild.id), { type, page }));
+  await interaction.update(
+    scoreboard.card(guild, store.guild(guild.id), { type, page, viewerId: interaction.user?.id }),
+  );
 }
 
 module.exports = { data, execute, handleButton };

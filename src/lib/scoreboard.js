@@ -194,16 +194,35 @@ function entriesFor(settings, type) {
     .sort((a, b) => b.value - a.value || a.id.localeCompare(b.id));
 }
 
+/** The value half of a row: `Level 7 · 2,500 XP`, `900 messages`, `2h in voice`. */
+function detailFor(entry, type) {
+  if (type === 'levels') {
+    return `**Level ${entry.level}** · ${entry.value.toLocaleString('en-US')} XP`;
+  }
+  if (type === 'messages') {
+    return `**${entry.value.toLocaleString('en-US')}** messages`;
+  }
+  return `**${formatVoice(entry.value)}** in voice`;
+}
+
 function lineFor(entry, place, type) {
   const medals = ['🥇', '🥈', '🥉'];
   const placeLabel = medals[place - 1] ?? `\`#${place}\``;
-  if (type === 'levels') {
-    return `${placeLabel} <@${entry.id}> · **Level ${entry.level}** · ${entry.value.toLocaleString('en-US')} XP`;
-  }
-  if (type === 'messages') {
-    return `${placeLabel} <@${entry.id}> · **${entry.value.toLocaleString('en-US')}** messages`;
-  }
-  return `${placeLabel} <@${entry.id}> · **${formatVoice(entry.value)}** in voice`;
+  return `${placeLabel} <@${entry.id}> · ${detailFor(entry, type)}`;
+}
+
+/**
+ * Where the viewer sits on this board when they are not on the page in front
+ * of them, so paging through a big server still tells everyone their place.
+ * Returns null when their row is already visible.
+ */
+function viewerLine(all, type, viewerId, start) {
+  if (!viewerId) return null;
+  const index = all.findIndex((entry) => entry.id === viewerId);
+  if (index === -1) return '📍 **Your rank** · not ranked on this board yet';
+  const place = index + 1;
+  if (place > start && place <= start + PAGE_SIZE) return null;
+  return `📍 **Your rank** · \`#${place}\` ${detailFor(all[index], type)}`;
 }
 
 function tabButton(type, current) {
@@ -239,7 +258,7 @@ function rowsFor(type, page, pageCount) {
  * One scoreboard card. `type` picks the board and `page` walks through every
  * ranked member ten at a time, so nobody is cut off at the top ten.
  */
-function card(guild, settings, { type = 'levels', page = 1 } = {}) {
+function card(guild, settings, { type = 'levels', page = 1, viewerId = null } = {}) {
   const safeType = TYPES.includes(type) ? type : 'levels';
   const all = entriesFor(settings, safeType);
   const pageCount = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
@@ -250,6 +269,7 @@ function card(guild, settings, { type = 'levels', page = 1 } = {}) {
   const description = slice.length
     ? slice.map((entry, index) => lineFor(entry, start + index + 1, safeType)).join('\n')
     : '> 🌱 Nothing tracked yet — start chatting or hop in voice!';
+  const mine = viewerLine(all, safeType, viewerId, start);
 
   return v2.card({
     accent: COLORS.brand,
@@ -257,6 +277,7 @@ function card(guild, settings, { type = 'levels', page = 1 } = {}) {
     title: `${trophyEmoji(guild)} ${BOARDS[safeType].title}`,
     subtitle: `${all.length} member${all.length === 1 ? '' : 's'} · page ${safePage}/${pageCount}`,
     description,
+    sections: mine ? [mine] : [],
     footer: guild?.name,
     thumbnail: guild?.iconURL?.({ size: 256 }) ?? undefined,
     buttons: rowsFor(safeType, safePage, pageCount),
@@ -286,6 +307,7 @@ module.exports = {
   card,
   countsForVoice,
   endVoice,
+  detailFor,
   entriesFor,
   ephemeralCard,
   flushVoiceSessions,
@@ -298,4 +320,5 @@ module.exports = {
   startVoice,
   statsStore,
   syncVoiceSessions,
+  viewerLine,
 };

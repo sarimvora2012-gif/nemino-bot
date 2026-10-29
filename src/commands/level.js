@@ -210,7 +210,12 @@ async function execute(interaction, { store }) {
   if (sub === 'top') {
     // The level board is one tab of the scoreboard, so the arrows and the
     // levels/messages/voice switcher are always available from here too.
-    await interaction.reply(scoreboard.ephemeralCard(guild, settings, { type: 'levels' }));
+    await interaction.reply(
+      scoreboard.ephemeralCard(guild, settings, {
+        type: 'levels',
+        viewerId: interaction.user?.id,
+      }),
+    );
     return;
   }
 

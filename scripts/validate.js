@@ -3125,6 +3125,26 @@ test('the scoreboard pages through every member and switches board', () => {
     false,
   );
 
+  const mine = textOf(
+    scoreboard.card(guild, settings, { type: 'levels', page: 1, viewerId: 'u1' }),
+  );
+  assert.ok(mine.includes('Your rank') && mine.includes('#25'), 'their own place shows off-page');
+  assert.ok(mine.includes('100 XP'), 'with the value on this board');
+
+  const onPage = textOf(
+    scoreboard.card(guild, settings, { type: 'levels', page: 3, viewerId: 'u1' }),
+  );
+  assert.ok(!onPage.includes('Your rank'), 'no extra line when their row is visible');
+
+  const unranked = textOf(
+    scoreboard.card(guild, settings, { type: 'levels', viewerId: 'ghost' }),
+  );
+  assert.ok(unranked.includes('not ranked on this board yet'));
+  assert.ok(
+    !textOf(scoreboard.card(guild, settings, { type: 'levels' })).includes('Your rank'),
+    'a card without a viewer has no rank line',
+  );
+
   settings.activityStats.users = { a: { messages: 900 }, b: { messages: 12, voiceSeconds: 7200 } };
   const chat = textOf(scoreboard.card(guild, settings, { type: 'messages' }));
   assert.ok(chat.includes('TOP CHATTERS') && chat.includes('**900** messages'));

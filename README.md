@@ -337,7 +337,7 @@ Every message earns **15–25 XP** (random per message) with a **20-second coold
 Level-ups post a small card in the channel where they happened, or in the channel set with `/level settings announce_channel:#channel`; `announce:false` keeps them silent and the levels still count. XP is saved to `data/data.json` under `levels.users`, written at most once every 5 seconds instead of on every message, so a busy server does not hammer the disk.
 
 ### Scoreboard
-The scoreboard is one card with three tabs — 📈 **ʟᴇᴠᴇʟꜱ**, 💬 **ᴍᴇꜱꜱᴀɢᴇꜱ** and 🔊 **ᴠᴏɪᴄᴇ** — plus **◀️ Back** and **▶️ Next** underneath. It always lists **every ranked member**, ten per page, so nobody is cut off after the top ten; the arrows grey out on the first and last page and each tab keeps its own page count. The card is ephemeral, so each person pages through their own copy without moving anybody else's.
+The scoreboard is one card with three tabs — 📈 **ʟᴇᴠᴇʟꜱ**, 💬 **ᴍᴇꜱꜱᴀɢᴇꜱ** and 🔊 **ᴠᴏɪᴄᴇ** — plus **◀️ Back** and **▶️ Next** underneath. It always lists **every ranked member**, ten per page, so nobody is cut off after the top ten; the arrows grey out on the first and last page and each tab keeps its own page count. The card is ephemeral, so each person pages through their own copy without moving anybody else's — which is also what lets it show **their own place** under the list (`📍 Your rank · #47 · Level 3 · 1,200 XP`) whenever they are on a different page, or “not ranked on this board yet” before they have any activity. The line is hidden when their row is already visible on the page.
 
 | Board | Counts | Saved as |
 | --- | --- | --- |
