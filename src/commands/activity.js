@@ -14,12 +14,21 @@ const {
   COLORS,
 } = require('../lib/helpers');
 const activity = require('../lib/activity');
+const scoreboard = require('../lib/scoreboard');
 
 const data = [
   new SlashCommandBuilder()
     .setName('activity')
     .setDescription('Run and schedule staff activity checks')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand((sub) =>
+      sub
+        .setName('rank')
+        .setDescription('A member’s level, messages and voice points')
+        .addUserOption((opt) =>
+          opt.setName('user').setDescription('Member to show (defaults to you)'),
+        ),
+    )
     .addSubcommand((sub) =>
       sub
         .setName('start')
@@ -79,6 +88,12 @@ async function execute(interaction, ctx) {
   const { store } = ctx;
   const guild = interaction.guild;
   const settings = store.guild(guild.id);
+  const sub = interaction.options.getSubcommand();
+
+  if (sub === 'rank') {
+    await scoreboard.replyWithMemberCard(interaction, ctx);
+    return;
+  }
 
   if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
     await interaction.reply({
@@ -87,8 +102,6 @@ async function execute(interaction, ctx) {
     });
     return;
   }
-
-  const sub = interaction.options.getSubcommand();
 
   if (sub === 'start') {
     let durationSeconds;

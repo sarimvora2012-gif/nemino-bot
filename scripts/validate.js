@@ -493,9 +493,14 @@ test('/application has panel, toggle and a questions group', () => {
     ['add', 'list', 'remove'],
   );
 });
-test('/activity has start, end, status and auto', () => {
+test('/activity has start, end, status, auto and rank', () => {
   const names = jsonByName.get('activity').options.map((option) => option.name).sort();
-  assert.deepEqual(names, ['auto', 'end', 'start', 'status']);
+  assert.deepEqual(names, ['auto', 'end', 'rank', 'start', 'status']);
+});
+test('/rank is the public activity card', () => {
+  const rank = jsonByName.get('rank');
+  assert.equal(rank.default_member_permissions, undefined, 'everyone can use it');
+  assert.deepEqual(rank.options.map((option) => option.name), ['user']);
 });
 test('/giveaway create requires prize, duration and claimtime', () => {
   const giveaway = jsonByName.get('giveaway');
@@ -3196,6 +3201,111 @@ test('the scoreboard pages through every member and switches board', () => {
 
   const empty = scoreboard.card(guild, { levels: { users: {} }, activityStats: { users: {} } }, { type: 'voice' });
   assert.ok(textOf(empty).includes('Nothing tracked yet'));
+});
+
+test('a member card shows levels, messages and voice points with places', () => {
+  const settings = {
+    levels: {
+      users: {
+        a: { xp: 900, messages: 40 },
+        b: { xp: 300, messages: 90 },
+        c: { xp: 100, messages: 5 },
+      },
+    },
+    activityStats: {
+      users: {
+        a: { messages: 40, voiceSeconds: 5400 },
+        b: { messages: 90, voiceSeconds: 900 },
+      },
+    },
+  };
+  const guild = { name: 'Nemino', emojis: { cache: { find: () => undefined } } };
+  const member = {
+    id: 'b',
+    user: { username: 'Kai' },
+    displayAvatarURL: () => 'https://cdn/avatar.png',
+  };
+
+  const text = textOf(scoreboard.memberCard(guild, settings, member));
+  assert.ok(text.includes('LEVEL 2'), '300 XP is level 2');
+  assert.ok(text.includes('Kai'), 'shows the member');
+  assert.ok(text.includes('300') && text.includes('#2'), 'XP with their place (level board)');
+  assert.ok(text.includes('90') && text.includes('#1'), 'messages with their place');
+  assert.ok(text.includes('1 pt') && text.includes('15m') && text.includes('#2'), 'voice points and time');
+  assert.ok(text.includes('made by seraphum'));
+
+  const noVoice = textOf(
+    scoreboard.memberCard(guild, settings, {
+      id: 'c',
+      user: { username: 'Nova' },
+      displayAvatarURL: () => 'https://cdn/avatar.png',
+    }),
+  );
+  assert.ok(noVoice.includes('unranked'), 'no voice points yet reads as unranked');
+
+  assert.equal(scoreboard.positionOn(settings, 'messages', 'b'), 1);
+  assert.equal(scoreboard.positionOn(settings, 'messages', 'nobody'), null);
+  assert.equal(scoreboard.messageCountFor(settings, 'c'), 5, 'level history counts for messages');
+});
+
+test('the activity card opens for members while checks stay gated', async () => {
+  const { execute } = require('../src/commands/activity');
+  const rank = require('../src/commands/rank');
+  const settings = {
+    levels: { users: { a: { xp: 400, messages: 12 } } },
+    activityStats: { users: { a: { messages: 12, voiceSeconds: 1800 } } },
+  };
+  const store = fakeBoardStore(settings);
+  const member = {
+    id: 'a',
+    user: { username: 'Frost' },
+    displayAvatarURL: () => 'https://cdn/avatar.png',
+  };
+  const guild = {
+    name: 'Nemino',
+    emojis: { cache: { find: () => undefined } },
+    members: { fetch: async () => null, cache: { get: () => member } },
+  };
+
+  const interaction = () => ({
+    guild,
+    user: { id: 'a' },
+    memberPermissions: { has: () => false },
+    options: { getSubcommand: () => 'rank', getUser: () => null },
+    reply: async (payload) => replies.push(payload),
+  });
+  const replies = [];
+
+  await rank.execute(interaction(), { store });
+  assert.equal(replies.length, 1, 'a plain member gets their card');
+  assert.ok(replies[0].flags & 64, 'the card is ephemeral');
+  const text = textOf(replies[0]);
+  assert.ok(text.includes('LEVEL 2') && text.includes('12'));
+  assert.ok(text.includes('2 pts'), '30 minutes is two voice points');
+
+  await execute(
+    {
+      ...interaction(),
+      options: { getSubcommand: () => 'rank', getUser: () => null },
+    },
+    { store },
+  );
+  assert.equal(replies.length, 2, 'the admin menu offers the same card');
+  assert.equal(textOf(replies[1]), text, 'both doors render the same card');
+
+  const denied = [];
+  await execute(
+    {
+      guild,
+      user: { id: 'a' },
+      memberPermissions: { has: () => false },
+      options: { getSubcommand: () => 'status' },
+      reply: async (payload) => denied.push(payload),
+    },
+    { store },
+  );
+  assert.ok(denied[0].flags & 64, 'activity checks still refuse non-admins');
+  assert.match(denied[0].embeds[0].data.description, /Manage Server/);
 });
 
 test('the level board opens the scoreboard and its buttons page it', async () => {

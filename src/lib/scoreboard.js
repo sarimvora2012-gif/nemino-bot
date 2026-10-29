@@ -1,7 +1,7 @@
 'use strict';
 
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-const { COLORS, trophyEmoji } = require('./helpers');
+const { COLORS, errorEmbed, trophyEmoji } = require('./helpers');
 const { toSmallCaps } = require('./smallcaps');
 const levels = require('./levels');
 const v2 = require('./v2');
@@ -208,6 +208,25 @@ function formatVoice(seconds) {
   return total > 0 ? '<1m' : '0m';
 }
 
+/** Messages for one member, taking whichever counter has counted further. */
+function messageCountFor(settings, userId) {
+  const counted = Math.max(
+    0,
+    Math.floor(Number(statsStore(settings)[userId]?.messages) || 0),
+  );
+  const fromLevels = Math.max(
+    0,
+    Math.floor(Number(settings.levels?.users?.[userId]?.messages) || 0),
+  );
+  return Math.max(counted, fromLevels);
+}
+
+/** Their place on one board (1-based), or null when they are not ranked. */
+function positionOn(settings, type, userId) {
+  const index = entriesFor(settings, type).findIndex((entry) => entry.id === userId);
+  return index === -1 ? null : index + 1;
+}
+
 /** Every ranked member for one board, best first. */
 function entriesFor(settings, type) {
   if (type === 'levels') {
@@ -238,13 +257,7 @@ function entriesFor(settings, type) {
   const ids = new Set([...Object.keys(counted), ...Object.keys(levelUsers)]);
 
   return [...ids]
-    .map((id) => ({
-      id,
-      value: Math.max(
-        Math.max(0, Math.floor(Number(counted[id]?.messages) || 0)),
-        Math.max(0, Math.floor(Number(levelUsers[id]?.messages) || 0)),
-      ),
-    }))
+    .map((id) => ({ id, value: messageCountFor(settings, id) }))
     .filter((entry) => entry.value > 0)
     .sort((a, b) => b.value - a.value || a.id.localeCompare(b.id));
 }
@@ -339,6 +352,94 @@ function card(guild, settings, { type = 'levels', page = 1, viewerId = null } = 
   });
 }
 
+/** `#12` on a board, or `unranked` when they have no activity there yet. */
+function placeLabel(place) {
+  return place ? `#${place}` : 'unranked';
+}
+
+/**
+ * One member's whole activity picture: level and XP, messages and voice
+ * points, each with their place on that board.
+ */
+function memberCard(guild, settings, member) {
+  const userId = member?.id;
+  const totalXp = Math.max(0, Math.floor(Number(settings.levels?.users?.[userId]?.xp) || 0));
+  const { level, xpIntoLevel, xpForNext } = levels.levelFromXp(totalXp);
+  const voiceSeconds = Math.max(
+    0,
+    Math.floor(Number(statsStore(settings)[userId]?.voiceSeconds) || 0),
+  );
+  const points = voicePoints(voiceSeconds);
+  const messages = messageCountFor(settings, userId);
+
+  return v2.card({
+    accent: COLORS.brand,
+    kicker: toSmallCaps('activity'),
+    title: `LEVEL ${level}`,
+    subtitle: member?.user?.username ?? 'Member',
+    stats: [
+      {
+        emoji: '✨',
+        label: 'XP',
+        value: `${totalXp.toLocaleString('en-US')} · ${placeLabel(positionOn(settings, 'levels', userId))}`,
+      },
+      {
+        emoji: '💬',
+        label: 'Messages',
+        value: `${messages.toLocaleString('en-US')} · ${placeLabel(
+          positionOn(settings, 'messages', userId),
+        )}`,
+      },
+      {
+        emoji: '🔊',
+        label: 'Voice',
+        value: `${points} pt${points === 1 ? '' : 's'} · ${formatVoice(voiceSeconds)} · ${placeLabel(
+          positionOn(settings, 'voice', userId),
+        )}`,
+      },
+    ],
+    progress: {
+      percent: xpForNext ? (xpIntoLevel / xpForNext) * 100 : 0,
+      emoji: '📈',
+      label: `${xpIntoLevel.toLocaleString('en-US')}/${xpForNext.toLocaleString(
+        'en-US',
+      )} XP to level ${level + 1}`,
+    },
+    thumbnail: member?.displayAvatarURL?.({ size: 256 }) ?? member?.user?.displayAvatarURL?.(),
+    footer: guild?.name,
+  });
+}
+
+/**
+ * Replies with one member's activity card, defaulting to whoever asked. Shared
+ * by `/rank` and `/activity rank` so both always render the same thing.
+ */
+async function replyWithMemberCard(interaction, { store }) {
+  const guild = interaction.guild;
+  const settings = store.guild(guild.id);
+  const user = interaction.options.getUser('user') ?? interaction.user;
+  const member =
+    (await guild.members.fetch(user.id).catch(() => null)) ??
+    guild.members.cache.get(user.id) ??
+    null;
+
+  if (!member) {
+    await interaction.reply({
+      embeds: [errorEmbed(`${user} is not a member of this server.`, 'Not a member')],
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
+    return null;
+  }
+
+  const payload = {
+    ...v2.ephemeral(memberCard(guild, settings, member)),
+    allowedMentions: { parse: [] },
+  };
+  await interaction.reply(payload);
+  return payload;
+}
+
 /** A scoreboard card only the person who ran the command can page through. */
 function ephemeralCard(guild, settings, options) {
   return {
@@ -372,8 +473,12 @@ module.exports = {
   formatVoice,
   handleMessage,
   handleVoiceState,
+  memberCard,
+  messageCountFor,
+  positionOn,
   recordFor,
   recordMessage,
+  replyWithMemberCard,
   scheduleSave,
   startVoice,
   statsStore,

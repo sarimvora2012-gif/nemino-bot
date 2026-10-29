@@ -250,6 +250,9 @@ All `/activity` commands require **Manage Server**.
 | `/activity end` | Ends the running check early and posts the final counts |
 | `/activity status` | Live counts, LOA role and automatic schedule |
 | `/activity auto enabled:<true/false> [interval] [duration] [channel]` | Schedule recurring checks, e.g. every 7 days for 48 hours |
+| `/activity rank [user]` | The activity card from inside the admin menu (members use `/rank`) |
+
+`/rank [user]` is the public door to the same card, because every check command under `/activity` stays restricted to **Manage Server**. It shows one member's level with the XP bar, their messages and their voice points, each followed by their place on that scoreboard (`✨ XP · 900 · #2`, `💬 Messages · 90 · #1`, `🔊 Voice · 1 pt · 15m · #2`), or **unranked** on a board they have no activity on yet.
 
 The card is deliberately wide and short: a heading with the time remaining in hours/days (e.g. “⏳ 23h left”), one instruction line, a single stat line (active staff · reacted · on LOA · time given) and a response-percentage bar. It does not show a raw deadline, who started the check or a not-reacted count. The accent turns green when everyone has replied and red once a check closes with missing staff. Starting a check pings the staff role once (`<@&role>`) instead of every member individually, so LOA staff receive it too and can ignore it; when 25% of the time remains only the members who have **not** reacted are pinged — one `<@user>` mention each, split across messages — with “we are still waiting on you !”, so people who already checked in get no notification and the staff role is never pinged again. Members with the LOA role are skipped entirely; LOA membership is checked when the check starts, so assign the role before running a check. Counts and the time-remaining line update as the check runs: each check-in is applied within about a second of the reaction, because the bot records reactions itself instead of re-reading Discord's reaction list, and the card is edited at most once every two seconds so a burst of check-ins can never hit Discord's edit rate limit. Durations accept `m`, `h`, `d` or `w` (minimum 1 minute; automatic intervals minimum 1 hour and must be longer than the check duration).
 
@@ -327,6 +330,7 @@ Self-vouches and vouches for bots are refused. `!vouchadd` works for the server 
 | `/level rank [user]` | A member's level, rank, XP and progress bar |
 | `/level top` | The XP leaderboard, ten members per page with **◀️ Back** / **▶️ Next** |
 | `/scoreboard [type]` | Switch between the **Levels**, **Messages** and **Voice time** boards |
+| `/rank [user]` | One member's level, messages and voice points in a single card |
 
 Every leaderboard (`/level top`, `/scoreboard` and `/vouch leaderboard`) uses the server's own **trophy** emoji when one exists, falling back to 🏆 if it is missing.
 | `/level settings [enabled] [announce] [announce_channel] [xp_min] [xp_max] [cooldown]` | View or change XP earning (owner and co-owner only) |

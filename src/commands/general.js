@@ -102,6 +102,7 @@ async function execute(interaction, { client }) {
           '`/level rank [user]` — level, rank, XP and progress',
           '`/level top` — every member’s XP, ten per page',
           '`/scoreboard [type]` — switch between Levels, Messages and Voice time',
+          '`/rank [user]` — one card with someone’s level, messages and voice points',
           'Use ◀️ Back and ▶️ Next under a leaderboard to see everyone',
           '🔊 Voice earns 1 point per 15 minutes, and only while 3+ people are in the channel',
           '`/level settings` — XP per message, cooldown, announce channel (owner and co-owner only)',
