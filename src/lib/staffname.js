@@ -242,16 +242,105 @@ async function syncNickname(member, settings, guild = member?.guild) {
   return { ok: true, changed: true, nickname: wanted };
 }
 
+// ---- Automatic sync on role changes ---------------------------------------
+
+const nicknameQueue = new Map();
+let draining = false;
+
+function roleIds(member) {
+  const cache = member?.roles?.cache;
+  if (!cache) return null;
+  if (typeof cache.keys === 'function') return new Set(cache.keys());
+  return new Set([...(cache.values?.() ?? [])].map((role) => role?.id).filter(Boolean));
+}
+
+/** True when the member's role set actually changed (a rename is not enough). */
+function rolesChanged(oldMember, newMember) {
+  const before = roleIds(oldMember);
+  const after = roleIds(newMember);
+  if (!before || !after) return false;
+  if (before.size !== after.size) return true;
+  for (const id of after) if (!before.has(id)) return true;
+  return false;
+}
+
+/** One pending rename per member, so a burst of role edits only renames once. */
+function queueNicknameSync(member, context) {
+  if (!member?.guild || !member.id || !context?.store) return null;
+  const key = `${member.guild.id}:${member.id}`;
+  nicknameQueue.set(key, { guild: member.guild, memberId: member.id, store: context.store });
+  return key;
+}
+
+/**
+ * Works through queued renames one at a time. A rename Discord refuses is
+ * logged and skipped — it must never break the next member's sync.
+ */
+async function drainQueue({ gapMs = RENAME_GAP_MS } = {}) {
+  if (draining) return false;
+  draining = true;
+  try {
+    while (nicknameQueue.size) {
+      const first = nicknameQueue.entries().next();
+      if (first.done) break;
+      const [key, entry] = first.value;
+      nicknameQueue.delete(key);
+
+      const guild = entry.guild;
+      const member =
+        guild.members?.cache?.get?.(entry.memberId) ??
+        (await guild.members?.fetch?.(entry.memberId).catch(() => null));
+      if (!member) continue;
+
+      const result = await syncNickname(member, entry.store.guild(guild.id), guild).catch(
+        (err) => ({ ok: false, reason: err.message }),
+      );
+      if (!result.ok) {
+        console.warn(`[staffname] Could not rename ${member.user?.tag ?? member.id}: ${result.reason}`);
+      }
+      // Only a real edit counts against Discord's rename rate limit.
+      if (result.changed && gapMs) await wait(gapMs);
+    }
+  } finally {
+    draining = false;
+  }
+  return true;
+}
+
+/**
+ * GuildMemberUpdate hook: a role added or removed anywhere in Discord (role
+ * menu, another bot, the audit log) keeps the nickname in step, not just
+ * `/promote` and `/demote`.
+ */
+async function handleMemberUpdate(oldMember, newMember, context, options = {}) {
+  if (!newMember?.id || newMember.user?.bot) return false;
+  if (context?.client?.user?.id === newMember.id) return false;
+  const guild = newMember.guild;
+  if (!guild) return false;
+  if (!rolesChanged(oldMember, newMember)) return false;
+
+  const settings = context?.store?.guild?.(guild.id);
+  // Without a staff role there is no hierarchy to read a rank from.
+  if (!settings?.staffRoleId) return false;
+
+  queueNicknameSync(newMember, context);
+  return drainQueue(options);
+}
+
 module.exports = {
   MAX_NICKNAME,
   NOT_A_RANK,
   PREFIX_COMMANDS,
   RENAME_GAP_MS,
+  drainQueue,
+  handleMemberUpdate,
   handleMessage,
   isRankRole,
   nicknameFor,
   rankRoles,
+  queueNicknameSync,
   renameBlocker,
+  rolesChanged,
   splitCount,
   staffRankRole,
   stripRank,

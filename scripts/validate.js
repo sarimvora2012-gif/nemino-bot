@@ -1678,6 +1678,73 @@ test('a bulk sync rebuilds every staff name and fixes stale prefixes', async () 
   assert.match(blocked.failed[0].reason, /Manage Nicknames/);
 });
 
+test('role changes keep staff nicknames in sync automatically', async () => {
+  const { guild, settings, person } = bulkRig();
+  const store = { guild: () => settings, save: () => {} };
+  const context = { store, client: { user: { id: 'bot' } } };
+  guild.members.cache = new Map();
+
+  assert.equal(
+    staffname.rolesChanged(
+      { roles: { cache: { keys: () => ['a'] } } },
+      { roles: { cache: { keys: () => ['a', 'b'] } } },
+    ),
+    true,
+    'a new role is a change',
+  );
+  assert.equal(
+    staffname.rolesChanged(
+      { roles: { cache: { keys: () => ['a', 'b'] } } },
+      { roles: { cache: { keys: () => ['a', 'b'] } } },
+    ),
+    false,
+    'the same roles are not a change',
+  );
+
+  // A role added through Discord's own member menu, not /promote.
+  const before = person('a', ['elite'], 'Slash');
+  const promoted = person('a', ['elite', 'mod', 'staff'], 'Slash');
+  guild.members.cache.set('a', promoted);
+  assert.equal(
+    await staffname.handleMemberUpdate(before, promoted, context, { gapMs: 0 }),
+    true,
+  );
+  assert.equal(promoted.renamed, 'ᴍᴏᴅ Slash', 'the new rank lands in the name');
+
+  // A nickname edit fires the same event with unchanged roles: leave it alone.
+  const renamedByHand = person('a', ['elite', 'mod', 'staff'], 'ᴍᴏᴅ Slashy');
+  guild.members.cache.set('a', renamedByHand);
+  assert.equal(
+    await staffname.handleMemberUpdate(promoted, renamedByHand, context, { gapMs: 0 }),
+    false,
+  );
+  assert.equal(renamedByHand.renamed, undefined);
+
+  // Removing the staff role strips the prefix again.
+  const wasStaff = person('b', ['staff', 'mod'], 'ᴍᴏᴅ Ruby');
+  const nowPlain = person('b', ['elite'], 'ᴍᴏᴅ Ruby');
+  guild.members.cache.set('b', nowPlain);
+  await staffname.handleMemberUpdate(wasStaff, nowPlain, context, { gapMs: 0 });
+  assert.equal(nowPlain.renamed, 'Ruby');
+
+  // Bots and the bot's own account are never renamed.
+  const botBefore = { id: 'z', guild, user: { bot: true }, roles: { cache: { keys: () => ['a'] } } };
+  const botAfter = { id: 'z', guild, user: { bot: true }, roles: { cache: { keys: () => ['a', 'b'] } } };
+  guild.members.cache.set('z', botAfter);
+  assert.equal(await staffname.handleMemberUpdate(botBefore, botAfter, context, { gapMs: 0 }), false);
+
+  // No staff role configured means no hierarchy to read a rank from.
+  settings.staffRoleId = null;
+  const plainBefore = person('c', ['elite'], 'Nova');
+  const plainAfter = person('c', ['elite', 'staff'], 'Nova');
+  guild.members.cache.set('c', plainAfter);
+  assert.equal(
+    await staffname.handleMemberUpdate(plainBefore, plainAfter, context, { gapMs: 0 }),
+    false,
+  );
+  assert.equal(plainAfter.renamed, undefined);
+});
+
 test('!staffname rebuilds names and refuses non-admins', async () => {
   const { guild, settings, person } = bulkRig();
   const staff = person('a', ['staff', 'mod'], 'Slash');

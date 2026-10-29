@@ -148,6 +148,12 @@ client.on(Events.GuildMemberRemove, (member) => {
   membercount.queueUpdate(context, member.guild);
 });
 
+client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
+  staffname
+    .handleMemberUpdate(oldMember, newMember, context)
+    .catch((err) => console.error('[staffname] Role change handler failed:', err));
+});
+
 client.on(Events.VoiceStateUpdate, (oldState, newState) => {
   try {
     scoreboard.handleVoiceState(oldState, newState, context);
