@@ -195,16 +195,37 @@ function kickBlocker(guild, member) {
   return null;
 }
 
+/**
+ * The newest bot message with components in the channel, used when a stored
+ * panel id is gone so a re-created channel does not get a second panel.
+ */
+async function findExistingPanel(channel, botId) {
+  if (!botId || !channel?.messages?.fetch) return null;
+  const fetched = await channel.messages.fetch({ limit: 25 }).catch(() => null);
+  if (!fetched) return null;
+  const list = fetched instanceof Map ? [...fetched.values()] : Array.isArray(fetched) ? fetched : [];
+  return (
+    list.find(
+      (entry) => entry?.author?.id === botId && (entry.components?.length ?? 0) > 0,
+    ) ?? null
+  );
+}
+
 /** Sends or fixes the panel so the kick count on it stays current. */
 async function ensurePanel(channel, settings, store) {
   if (!channel?.isTextBased?.()) return null;
   const config = settings.honeypot;
   const payload = { ...panelCard(config.kicks ?? 0), allowedMentions: { parse: [] } };
 
-  const existing = config.messageId
-    ? await channel.messages.fetch(config.messageId).catch(() => null)
-    : null;
+  const existing =
+    (config.messageId ? await channel.messages.fetch(config.messageId).catch(() => null) : null) ??
+    (await findExistingPanel(channel, channel.client?.user?.id));
+
   if (existing) {
+    if (settings.honeypot.messageId !== existing.id) {
+      settings.honeypot.messageId = existing.id;
+      store.save();
+    }
     await existing.edit(payload).catch(() => {});
     return existing;
   }
@@ -522,6 +543,7 @@ module.exports = {
   IMMUNE_PERMISSIONS,
   IMMUNE_NOTE_MS,
   ensurePanel,
+  findExistingPanel,
   handleMessage,
   isArmedChannel,
   isModOrAbove,

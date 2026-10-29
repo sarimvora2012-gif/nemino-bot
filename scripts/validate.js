@@ -421,6 +421,23 @@ test('a re-created honeypot channel is adopted automatically', () => {
     'a disabled honeypot stays disabled',
   );
 });
+test('a lost panel id reuses the panel already in the channel', async () => {
+  const messages = new Map([
+    ['a', { id: 'a', author: { id: 'bot' }, components: [] }],
+    ['b', { id: 'b', author: { id: 'bot' }, components: [{}], edit: async () => {} }],
+  ]);
+  const channel = {
+    isTextBased: () => true,
+    client: { user: { id: 'bot' } },
+    messages: { fetch: async (arg) => (typeof arg === 'object' ? messages : null) },
+    send: async () => {
+      throw new Error('a second panel should not be posted');
+    },
+  };
+  const settings = { honeypot: { channelId: 'hp', messageId: 'gone', kicks: 2 } };
+  assert.equal((await honeypot.ensurePanel(channel, settings, { save: () => {} })).id, 'b');
+  assert.equal(settings.honeypot.messageId, 'b');
+});
 const steal = require('../src/lib/steal');
 test('!steal reads custom emojis, animated emojis and CDN links', () => {
   assert.equal(steal.PREFIX, '!steal');
