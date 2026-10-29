@@ -979,9 +979,35 @@ test('starting a check pings the staff role in one message', () => {
   assert.equal(activity.staffMention(null, ['user-1', 'user-2']), '<@user-1> <@user-2>');
   const source = fs.readFileSync(path.join(root, 'src', 'lib', 'activity.js'), 'utf8');
   assert.ok(source.includes('await pingStaffStarted(channel, check.requiredIds, settings.staffRoleId)'));
-  assert.ok(source.includes('await pingMissing(channel, missing, settings.staffRoleId)'));
+  assert.ok(
+    source.includes('await pingMissing(channel, missing)'),
+    'the reminder pings the missing members, never the staff role',
+  );
+  assert.ok(
+    !/pingMissing\([^)]*staffRoleId/.test(source),
+    'the staff role is not passed to the reminder',
+  );
   assert.ok(source.includes('An activity check has started!'));
   assert.ok(source.includes('we are still waiting on you !'));
+});
+test('the 25% reminder pings only the members who have not reacted', async () => {
+  const sent = [];
+  const channel = {
+    send: async (payload) => {
+      sent.push(payload.content);
+      return {};
+    },
+  };
+  await activity.pingMissing(channel, ['111', '222']);
+  assert.equal(sent.length, 1);
+  assert.ok(sent[0].includes('<@111>') && sent[0].includes('<@222>'));
+  assert.ok(!sent[0].includes('<@&'), 'the staff role is not mentioned');
+  assert.match(sent[0], /we are still waiting on you !/);
+
+  sent.length = 0;
+  await activity.pingMissing(channel, Array.from({ length: 300 }, (_, index) => `${index + 1}`));
+  assert.ok(sent.length > 1, 'a long list is split across messages');
+  assert.ok(sent.every((content) => content.length < 2000 && !content.includes('<@&')));
 });
 
 test('check-ins are tracked from the gateway, not polled from Discord', () => {

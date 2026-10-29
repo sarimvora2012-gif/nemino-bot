@@ -263,10 +263,13 @@ async function pingStaff(channel, roleId, ids, buildLine, label = 'ping') {
     .catch((err) => console.error(`[activity] Failed to send ${label}:`, err.message));
 }
 
-async function pingMissing(channel, missingIds, roleId) {
-  await pingStaff(
+/**
+ * The 25% reminder names the members who have not reacted, one mention each —
+ * the staff role is not pinged, so people who already checked in stay quiet.
+ */
+async function pingMissing(channel, missingIds) {
+  await pingUsers(
     channel,
-    roleId,
     missingIds,
     (mentions) => `⏰ ${mentions} we are still waiting on you !`,
     'reminder',
@@ -301,7 +304,7 @@ async function reactedUsers(check, message, { reconcile = false } = {}) {
 
 /**
  * Recomputes the reaction counts, updates the check embed and optionally pings
- * the staff role when members have not reacted yet.
+ * the members who have not reacted yet.
  */
 async function refreshCheck(ctx, guild, { ping = false, final = false, reconcile = false } = {}) {
   const settings = ctx.store.guild(guild.id);
@@ -320,7 +323,7 @@ async function refreshCheck(ctx, guild, { ping = false, final = false, reconcile
   const missing = check.requiredIds.filter((id) => !reacted.has(id));
 
   if (ping && missing.length) {
-    await pingMissing(channel, missing, settings.staffRoleId);
+    await pingMissing(channel, missing);
   }
 
   const updated = buildEmbed(guild, check, reacted, { ended: final });
@@ -645,6 +648,7 @@ module.exports = {
   CHECK_EMOJI,
   DEFAULT_LOA_ROLE_ID,
   AUTO_MIN_INTERVAL,
+  pingMissing,
   pingStaffStarted,
   pingStaff,
   staffMention,

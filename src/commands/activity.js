@@ -132,7 +132,7 @@ async function execute(interaction, ctx) {
               `**Staff (active):** ${check?.requiredIds.length ?? 0}`,
               `**On LOA:** ${check?.loaIds.length ?? 0}`,
               '',
-              'The staff role is pinged again with "we are still waiting on you !" when 25% of the time is left.',
+              'When 25% of the time is left, only the members who have not reacted are pinged with "we are still waiting on you !".',
             ].join('\n'),
           ),
         ],
