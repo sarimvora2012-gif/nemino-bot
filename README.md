@@ -21,7 +21,7 @@ A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **a
 | ⏳ Timeouts | `!to @user 10m [reason]` with hierarchy checks, a DM to the member and an entry in the moderation log |
 | 🧹 Purge | `!purge 25` bulk-deletes messages — 50 per command for staff, up to 1000 for the owner and co-owner |
 | 🛡️ AutoMod | Scam/phishing detection, invite and link blocking, ad filtering, anti-spam, mass-mention protection and dangerous-file blocking |
-| 🍯 Honeypot | `!honeypot` turns a channel into a trap: anyone who types there is kicked, DMed a fresh invite and logged |
+| 🍯 Honeypot | `!honeypot` turns a channel into a trap: anyone who types there is kicked, DMed a fresh invite and logged. Moderators and above are immune, and the panel counts every kick |
 | 👋 Welcome card | A wide Components V2 card in the welcome channel for every new member: avatar, mention, member number and join time |
 | 🔢 Member counter | A locked voice channel at the very top of the server, named `Members - <count>`, that updates as members join and leave |
 | 🧑‍💼 Staff guide | `!staffguide` posts a categorized command guide for new and existing staff, with rules/workflow links |
@@ -146,7 +146,7 @@ Every channel setting has a link twin right next to its picker, so you can paste
    ```text
    !honeypot
    ```
-   The bot needs **View Channel**, **Read Message History**, **Manage Messages** and **Kick Members** there, plus **Create Invite** somewhere public so the rejoin link keeps working. Admins and the owner are exempt from the kick, so you can still manage the channel.
+   The bot needs **View Channel**, **Read Message History**, **Manage Messages** and **Kick Members** there, plus **Create Invite** somewhere public so the rejoin link keeps working. Moderators and above are exempt from the kick — their message is still removed and they are told privately — so staff can keep managing the channel.
 
 9. **Emoji stealing** — no setup needed. Anyone with **Manage Expressions** can copy a custom emoji from any server into yours:
    ```text
@@ -360,7 +360,11 @@ The **market** (<#1527957956933582969>) and **staff market** (<#1527956094964600
 | `!honeypot https://discord.gg/xxxx` | Same, but uses that invite in the kick DM |
 | `!honeypot off` | Disables the honeypot and removes its panel |
 
-Run `!honeypot` inside the channel you want to trap. The panel states **DO NOT TALK IN HERE**: any message from a normal member deletes their message, kicks them and DMs them an invite back — worded for both cases, a slip of the finger and a genuinely compromised account that has to secure itself first. The bot reuses a never-expiring invite or creates one in a public channel, so the link in the DM keeps working. Admins and the server owner are never kicked. Every trigger is written to the moderation log with the message, DM status and kick result.
+Run `!honeypot` inside the channel you want to trap. The panel states **DO NOT TALK IN HERE**: any message from a normal member deletes their message, kicks them and DMs them an invite back — worded for both cases, a slip of the finger and a genuinely compromised account that has to secure itself first. The bot reuses a never-expiring invite or creates one in a public channel, so the link in the DM keeps working.
+
+**Moderators and above are immune.** Immunity is decided by permission (**Moderate Members**, **Kick Members**, **Ban Members**, **Manage Server** or **Administrator**) or by a role name that reads as mod level (`ᴍᴏᴅ`, `ꜱᴇɴɪᴏʀ ᴍᴏᴅ`, `ᴀᴅᴍɪɴ`, `ᴍᴀɴᴀɢᴇʀ`, `ᴄᴏ-ᴏᴡɴᴇʀ`), matched in any font. When one of them types there, their message is deleted and they get a private note explaining they are immune — a DM, or a short-lived channel note if their DMs are closed. Helpers and plain staff are **not** immune.
+
+The panel shows **how many people the honeypot has kicked**, and the count is updated after every successful kick. Every trigger is written to the moderation log with the message, DM status, kick result, the reason a kick was refused (missing **Kick Members**, role too high) and the running total. If the channel is deleted and re-created, the next message in a channel with *honeypot* in its name takes over automatically, so the trap cannot sit there doing nothing on a dead channel id.
 
 ### Welcome card and member counter
 

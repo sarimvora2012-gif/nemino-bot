@@ -120,6 +120,9 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch((err) => console.error('[commands] Sync failed:', err.message));
   activity.startScheduler(context);
   modules.giveaway?.startScheduler(context);
+  honeypot
+    .verify(context)
+    .catch((err) => console.error('[honeypot] Startup check failed:', err));
   membercount.start(context);
   streams.start(context);
   modules.ticket

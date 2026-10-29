@@ -236,6 +236,191 @@ test('honeypot panel tells members not to talk there', () => {
   assert.ok(/kicks you from the server/i.test(text));
   assert.ok(/DMs you an invite/i.test(text));
 });
+test('honeypot panel shows how many people it has kicked', () => {
+  const text = (card) =>
+    card.components[0]
+      .toJSON()
+      .components.map((component) => component.content ?? '')
+      .join('\n');
+  assert.match(text(honeypot.panelCard(7)), /Kicked\*\* · 7/);
+  assert.match(text(honeypot.panelCard(0)), /Kicked\*\* · 0/);
+  assert.match(text(honeypot.panelCard()), /immune/);
+});
+// Required here because this block runs before the later discord.js destructure.
+const HONEY_FLAGS = require('discord.js').PermissionFlagsBits;
+function hpMember({ id = 'm1', roleNames = [], perms = [] } = {}) {
+  return {
+    id,
+    permissions: { has: (flag) => perms.includes(flag) },
+    roles: {
+      cache: { some: (predicate) => roleNames.some((name) => predicate({ id: name, name })) },
+      highest: { position: 1 },
+    },
+  };
+}
+test('moderator level is immune regardless of the role font', () => {
+  const guild = { id: 'g1', ownerId: 'owner' };
+  for (const name of ['ᴍᴏᴅ', 'ꜱᴇɴɪᴏʀ ᴍᴏᴅ', 'ᴛʀɪᴀʟ ᴍᴏᴅ', 'ᴀᴅᴍɪɴ', 'ᴄᴏ-ᴏᴡɴᴇʀ', 'ᴍᴀɴᴀɢᴇʀ', 'Moderator']) {
+    assert.equal(
+      honeypot.isModOrAbove(hpMember({ roleNames: [name] }), guild),
+      true,
+      `${name} should be immune`,
+    );
+  }
+  for (const name of ['ꜱᴛᴀꜰꜰ', 'ʜᴇʟᴘᴇʀ', 'ᴛʀɪᴀʟ ʜᴇʟᴘᴇʀ', 'ᴍᴇᴍʙᴇʀ', 'Level 25 Elite']) {
+    assert.equal(
+      honeypot.isModOrAbove(hpMember({ roleNames: [name] }), guild),
+      false,
+      `${name} should not be immune`,
+    );
+  }
+  assert.equal(honeypot.isModOrAbove(hpMember({ id: 'owner' }), guild), true, 'the owner is immune');
+  assert.equal(
+    honeypot.isModOrAbove(hpMember({ perms: [HONEY_FLAGS.ModerateMembers] }), guild),
+    true,
+    'moderation powers count even without a matching role name',
+  );
+  assert.equal(
+    honeypot.isModOrAbove(hpMember({ perms: [HONEY_FLAGS.ManageMessages] }), guild),
+    false,
+    'Manage Messages alone does not make someone a moderator',
+  );
+});
+const HONEYPOT_CHANNEL = '🍯ʜᴏɴᴇʏᴘᴏᴛ';
+const honeypotRig = ({
+  roleNames = [],
+  perms = [],
+  botPosition = 10,
+  targetPosition = 1,
+  allowKick = true,
+} = {}) => {
+  const dms = [];
+  const deleted = [];
+  const kicks = [];
+  const settings = {
+    logChannelId: null,
+    honeypot: {
+      channelId: 'hp',
+      channelName: HONEYPOT_CHANNEL,
+      messageId: 'panel',
+      inviteUrl: 'https://discord.gg/abc',
+      kicks: 0,
+      lastKickAt: null,
+    },
+  };
+  const member = {
+    id: 'u1',
+    user: {
+      username: 'tester',
+      displayAvatarURL: () => 'https://cdn.example/avatar.png',
+      send: async (payload) => {
+        dms.push(payload);
+      },
+    },
+    permissions: { has: (flag) => perms.includes(flag) },
+    roles: {
+      cache: { some: (predicate) => roleNames.some((name) => predicate({ id: name, name })) },
+      highest: { position: targetPosition },
+    },
+    kick: async () => {
+      if (!allowKick) throw new Error('Missing Permissions');
+      kicks.push('u1');
+    },
+  };
+  const channel = {
+    id: 'hp',
+    name: HONEYPOT_CHANNEL,
+    isTextBased: () => true,
+    toString: () => '<#hp>',
+    messages: { fetch: async () => ({ edit: async () => {} }) },
+    send: async () => ({ id: 'panel', delete: async () => {} }),
+  };
+  const guild = {
+    id: 'g1',
+    name: 'Test Server',
+    ownerId: 'owner',
+    channels: { cache: { get: (id) => (id === 'hp' ? channel : null), find: () => null } },
+    members: {
+      fetch: async () => member,
+      me: {
+        permissions: { has: (flag) => flag === HONEY_FLAGS.KickMembers },
+        roles: { highest: { position: botPosition } },
+      },
+    },
+    invites: { fetch: async () => new Map(), create: async () => ({ url: 'https://discord.gg/x' }) },
+  };
+  channel.guild = guild;
+  const message = {
+    id: 'm1',
+    content: 'totally free nitro, click here',
+    guild,
+    channel,
+    member,
+    author: member.user,
+    delete: async () => {
+      deleted.push('m1');
+    },
+  };
+  const store = { guild: () => settings, save: () => {} };
+  return { message, store, settings, dms, deleted, kicks, guild, member, channel };
+};
+test('a message in the honeypot kicks the member and raises the count', async () => {
+  const rig = honeypotRig();
+  await honeypot.handleMessage(rig.message, { store: rig.store });
+  assert.equal(rig.kicks.length, 1, 'the member is kicked');
+  assert.equal(rig.deleted.length, 1, 'their message is removed');
+  assert.equal(rig.dms.length, 1, 'they get the rejoin DM');
+  assert.match(JSON.stringify(rig.dms[0]), /DO NOT TALK IN HERE/);
+  assert.equal(rig.settings.honeypot.kicks, 1);
+  assert.ok(rig.settings.honeypot.lastKickAt > 0);
+});
+test('moderators who type in the honeypot are not kicked', async () => {
+  const rig = honeypotRig({ roleNames: ['ᴍᴏᴅ'], targetPosition: 2 });
+  await honeypot.handleMessage(rig.message, { store: rig.store });
+  assert.equal(rig.kicks.length, 0, 'no kick for a moderator');
+  assert.equal(rig.deleted.length, 1, 'their message is still removed');
+  assert.equal(rig.dms.length, 1, 'they are told privately');
+  assert.match(JSON.stringify(rig.dms[0]), /immune/i);
+  assert.equal(rig.settings.honeypot.kicks, 0, 'nothing is counted');
+});
+test('a blocked kick is reported but not counted', async () => {
+  const rig = honeypotRig({ targetPosition: 50 });
+  await honeypot.handleMessage(rig.message, { store: rig.store });
+  assert.equal(rig.kicks.length, 0);
+  assert.equal(rig.settings.honeypot.kicks, 0);
+  assert.match(honeypot.kickBlocker(rig.guild, rig.member) ?? '', /top role/i);
+});
+test('a failed kick from Discord is not counted', async () => {
+  const rig = honeypotRig({ allowKick: false });
+  await honeypot.handleMessage(rig.message, { store: rig.store });
+  assert.equal(rig.settings.honeypot.kicks, 0);
+});
+test('messages outside the honeypot channel are ignored', async () => {
+  const rig = honeypotRig();
+  const other = { ...rig.channel, id: 'general', name: '💬ɢᴇɴᴇʀᴀʟ' };
+  await honeypot.handleMessage({ ...rig.message, channel: other }, { store: rig.store });
+  assert.equal(rig.kicks.length, 0);
+  assert.equal(rig.deleted.length, 0);
+});
+test('a re-created honeypot channel is adopted automatically', () => {
+  const settings = { honeypot: { channelId: 'deleted', messageId: null, kicks: 3 } };
+  const guild = { channels: { cache: { get: () => null } } };
+  const replacement = { id: 'new', name: HONEYPOT_CHANNEL, guild };
+  assert.equal(honeypot.isArmedChannel(settings, replacement), true);
+  const other = { id: 'x', name: '💬ɢᴇɴᴇʀᴀʟ', guild };
+  assert.equal(honeypot.isArmedChannel(settings, other), false, 'only honeypot-named channels take over');
+  const live = { channels: { cache: { get: (id) => (id === 'deleted' ? {} : null) } } };
+  assert.equal(
+    honeypot.isArmedChannel(settings, { id: 'second', name: HONEYPOT_CHANNEL, guild: live }),
+    false,
+    'a working armed channel is not hijacked by a second one',
+  );
+  assert.equal(
+    honeypot.isArmedChannel({ honeypot: { channelId: null } }, replacement),
+    false,
+    'a disabled honeypot stays disabled',
+  );
+});
 const steal = require('../src/lib/steal');
 test('!steal reads custom emojis, animated emojis and CDN links', () => {
   assert.equal(steal.PREFIX, '!steal');
@@ -842,7 +1027,14 @@ test('defaults are created per guild', () => {
   assert.deepEqual(guild.vouchPanels, {});
   assert.equal(guild.vouchChannelId, null);
   assert.equal(guild.vouchAdminRoleId, null);
-  assert.deepEqual(guild.honeypot, { channelId: null, messageId: null, inviteUrl: null });
+  assert.deepEqual(guild.honeypot, {
+    channelId: null,
+    channelName: null,
+    messageId: null,
+    inviteUrl: null,
+    kicks: 0,
+    lastKickAt: null,
+  });
 });
 test('activity checks persist', () => {
   const guild = store.guild('123');

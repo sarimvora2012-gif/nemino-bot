@@ -196,6 +196,7 @@ async function execute(interaction, { client }) {
         name: '⚙️ Setup',
         value: [
           '`!honeypot` — turn the current channel into a kick-on-message honeypot (admin only)',
+          'Moderators and above are immune — their message is removed and they are told privately',
           '`!honeypot off` — disable the honeypot',
           '`!staffguide` — post the full staff command guide (staff only)',
           '`/config view` — show current settings',

@@ -57,7 +57,14 @@ function defaultGuild() {
       cooldownSeconds: 20,
       users: {},
     },
-    honeypot: { channelId: null, messageId: null, inviteUrl: null },
+    honeypot: {
+      channelId: null,
+      channelName: null,
+      messageId: null,
+      inviteUrl: null,
+      kicks: 0,
+      lastKickAt: null,
+    },
     spawners: { buy: {}, sell: {}, panelChannelId: null, panelMessageId: null },
     stream: {
       enabled: true,
