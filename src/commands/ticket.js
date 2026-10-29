@@ -331,6 +331,7 @@ async function createTicketChannel({
   store,
   ownerId,
   extraUserIds = [],
+  extraRoleIds = [],
   categoryId = null,
   topic = null,
   reason = 'Ticket opened',
@@ -381,6 +382,15 @@ async function createTicketChannel({
       id: staffRole.id,
       allow: [...access, PermissionFlagsBits.ManageMessages],
     });
+  }
+
+  // Extra roles named by the caller (e.g. the spawner perms role) need to see
+  // the channel they are pinged in.
+  for (const roleId of new Set(extraRoleIds.filter(Boolean))) {
+    if (roleId === guild.roles.everyone.id) continue;
+    if (staffRole && roleId === staffRole.id) continue;
+    if (!guild.roles.cache.has(roleId)) continue;
+    overwrites.push({ id: roleId, allow: [...access, PermissionFlagsBits.ManageMessages] });
   }
 
   // Discord requires channel names to be unique in a guild, so a member opening a

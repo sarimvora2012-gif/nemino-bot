@@ -279,7 +279,7 @@ The board lives in <#1528595505255288893> and is a single message that is edited
 
 Each row uses the server's custom emoji for that spawner when one exists (names are matched case-insensitively: `skeleton`, `creeper`, `irongolem`, `zombiepiglin`, `pig`, `cow`, and `Spawner_with_fire` for the title) and otherwise falls back to a plain emoji — the current server emojis are already picked up. Add or steal more with `!steal` and the board uses them on its next refresh; no code change needed.
 
-Clicking a button opens a private ticket in the spawner category with the current prices listed for that side, `/ticket close` support and transcripts.
+Clicking a button opens a private ticket in the spawner category with the current prices listed for that side, `/ticket close` support and transcripts. The ticket pings the **spawner perms** role once so the people who run spawner deals see it straight away: `/config set spawner_perms_role:@role` picks it explicitly, and if that is unset the bot uses whichever role reads as “spawner perms” in any font. That role is also given access to the ticket channel, otherwise it could be pinged into a room it cannot open. If the server has no such role, the ticket still opens — just without a ping.
 
 ### Videos and streams
 | Command | Who | Description |

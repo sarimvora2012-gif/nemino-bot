@@ -2560,6 +2560,46 @@ test('the ticket total is the current price times the amount', () => {
   assert.equal(spawners.parseAmount('').ok, false);
 });
 
+test('spawner tickets ping the spawner perms role', () => {
+  const role = (id, name) => ({ id, name });
+  const roles = [
+    role('r-staff', 'ꜱᴛᴀꜰꜰ'),
+    role('r-perms', 'ꜱᴘᴀᴡɴᴇʀ ᴘᴇʀᴍꜱ'),
+    role('r-other', 'Spawner Buyer'),
+  ];
+  const guild = {
+    id: 'g-1',
+    roles: {
+      cache: {
+        get: (id) => roles.find((entry) => entry.id === id) ?? null,
+        find: (predicate) => roles.find(predicate) ?? null,
+      },
+    },
+  };
+
+  assert.equal(
+    spawners.spawnerPermsRole(guild, {}).id,
+    'r-perms',
+    'a role named “spawner perms” is found in any font',
+  );
+  assert.equal(
+    spawners.spawnerPermsRole(guild, { spawnerPermsRoleId: 'r-other' }).id,
+    'r-other',
+    'the configured role wins',
+  );
+  assert.equal(
+    spawners.spawnerPermsRole(guild, { spawnerPermsRoleId: 'deleted' }).id,
+    'r-perms',
+    'a stale id falls back to the name match',
+  );
+  assert.equal(spawners.spawnerPermsRole([], {}), null, 'no guild, no role');
+  assert.equal(
+    spawners.spawnerPermsRole({ id: 'g-1', roles: { cache: { find: () => null } } }, {}),
+    null,
+    'and nothing when the server has no such role',
+  );
+});
+
 test('spawner emojis use the server custom emoji with a fallback', () => {
   const skeleton = spawners.spawnerByKey('skeleton');
   assert.equal(spawners.spawnerEmoji(noEmojiGuild, skeleton), '💀');

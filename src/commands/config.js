@@ -200,6 +200,10 @@ const data = [
         .addRoleOption((opt) =>
           opt.setName('high_staff_role')
             .setDescription('Role pinged when staff miss an activity check (defaults to the AutoMod alert role)'),
+        )
+        .addRoleOption((opt) =>
+          opt.setName('spawner_perms_role')
+            .setDescription('Role pinged in spawner buy/sell tickets (defaults to any “spawner perms” role)'),
         ),
     ),
 ];
@@ -247,6 +251,11 @@ async function execute(interaction, { store }) {
           inline: true,
         },
         {
+          name: 'Spawner perms role',
+          value: role(settings.spawnerPermsRoleId),
+          inline: true,
+        },
+        {
           name: 'Automatic activity checks',
           value: settings.activity.enabled ? 'Enabled — `/activity status`' : 'Disabled',
           inline: true,
@@ -266,6 +275,7 @@ async function execute(interaction, { store }) {
   const vouchAdminRole = interaction.options.getRole('vouch_admin_role');
   const automodAlertRole = interaction.options.getRole('automod_alert_role');
   const highStaffRole = interaction.options.getRole('high_staff_role');
+  const spawnerPermsRole = interaction.options.getRole('spawner_perms_role');
 
   if (staffRole) {
     settings.staffRoleId = staffRole.id;
@@ -290,6 +300,10 @@ async function execute(interaction, { store }) {
   if (highStaffRole) {
     settings.highStaffRoleId = highStaffRole.id;
     updates.push(`Missed activity checks ping → ${highStaffRole}`);
+  }
+  if (spawnerPermsRole) {
+    settings.spawnerPermsRoleId = spawnerPermsRole.id;
+    updates.push(`Spawner tickets ping → ${spawnerPermsRole}`);
   }
 
   // Channel settings: the picker, the pasted link, or exactly one of them.

@@ -29,6 +29,8 @@ function defaultGuild() {
     automodAlertRoleId: null,
     // Role pinged when staff miss an activity check; falls back to the AutoMod alert role.
     highStaffRoleId: null,
+    // Role pinged in spawner buy/sell tickets; falls back to any "spawner perms" role.
+    spawnerPermsRoleId: null,
     vouches: {},
     vouchGiven: {},
     vouchPanels: {},

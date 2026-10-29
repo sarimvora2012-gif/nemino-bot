@@ -25,7 +25,7 @@ const {
   TextInputStyle,
 } = require('discord.js');
 const { embed, errorEmbed, successEmbed, infoEmbed, COLORS, isStaff } = require('./helpers');
-const { toSmallCaps } = require('./smallcaps');
+const { toPlain, toSmallCaps } = require('./smallcaps');
 const v2 = require('./v2');
 const { createTicketChannel } = require('../commands/ticket');
 
@@ -82,6 +82,25 @@ function titleEmoji(guild) {
 
 function spawnerByKey(key) {
   return SPAWNER_TYPES.find((type) => type.key === key) ?? null;
+}
+
+/**
+ * The role told about new spawner tickets: the configured `spawner_perms_role`,
+ * then any role whose name reads as "spawner perms" in whatever font it uses.
+ */
+function spawnerPermsRole(guild, settings) {
+  const id = settings?.spawnerPermsRoleId;
+  if (id) {
+    const configured = guild?.roles?.cache?.get?.(id);
+    if (configured) return configured;
+  }
+  return (
+    guild?.roles?.cache?.find?.(
+      (role) =>
+        role?.id !== guild?.id &&
+        /spawner\s*perm/.test(toPlain(String(role?.name ?? '')).toLowerCase()),
+    ) ?? null
+  );
 }
 
 /**
@@ -496,6 +515,8 @@ async function handleModal(interaction, { store }) {
   }
   if (existingId) store.removeTicket(existingId);
 
+  const permsRole = spawnerPermsRole(guild, settings);
+
   let channel;
   let number;
   try {
@@ -506,6 +527,7 @@ async function handleModal(interaction, { store }) {
       store,
       ownerId: interaction.user.id,
       categoryId: TICKET_CATEGORY_ID,
+      extraRoleIds: permsRole ? [permsRole.id] : [],
       type: `spawner-${mode}`,
       topic: `Spawner ${mode === 'buy' ? 'purchase' : 'sale'} · ${order.quantity}x ${type.label} @ ${order.unitPrice} · total ${order.total} · <@${interaction.user.id}> (${interaction.user.id})`,
       reason: `Spawner ${mode} ticket opened by ${interaction.user.tag}`,
@@ -531,7 +553,14 @@ async function handleModal(interaction, { store }) {
     channelId: channel.id,
     order,
   });
-  await channel.send({ ...payload, allowedMentions: { parse: [] } }).catch(() => {});
+  await channel
+    .send({
+      ...payload,
+      content: permsRole ? `${permsRole}` : undefined,
+      // Only the spawner perms role notifies; the member is already looking here.
+      allowedMentions: { parse: [], users: [], roles: permsRole ? [permsRole.id] : [] },
+    })
+    .catch(() => {});
 
   await interaction.editReply({
     embeds: [
@@ -605,6 +634,7 @@ module.exports = {
   refreshPanel,
   spawnerByKey,
   spawnerEmoji,
+  spawnerPermsRole,
   storedPanel,
   titleEmoji,
   ticketIntro,
