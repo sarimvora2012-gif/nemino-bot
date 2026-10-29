@@ -1,6 +1,6 @@
 'use strict';
 
-const { COLORS, trophyEmoji } = require('./helpers');
+const { COLORS } = require('./helpers');
 const { toSmallCaps } = require('./smallcaps');
 const v2 = require('./v2');
 
@@ -135,26 +135,6 @@ function levelUpCard(guild, member, level, xpIntoLevel, xpForNext) {
   });
 }
 
-function leaderboardCard(guild, settings) {
-  const top = entries(settings, 10);
-  const medals = ['🥇', '🥈', '🥉'];
-
-  const lines = top.map((entry) => {
-    const { level } = levelFromXp(entry.xp);
-    return `${medals[entry.position - 1] ?? `\`#${entry.position}\``} <@${entry.id}> · **Level ${level}** · ${entry.xp.toLocaleString('en-US')} XP`;
-  });
-
-  return v2.card({
-    accent: COLORS.brand,
-    kicker: toSmallCaps('levels'),
-    title: `${trophyEmoji(guild)} TOP MEMBERS`,
-    subtitle: `${Object.keys(settings.levels?.users ?? {}).length} members earning XP`,
-    description: lines.length ? lines.join('\n') : '> 🌱 No XP earned yet — start chatting!',
-    footer: guild.name,
-    thumbnail: guild.iconURL?.({ size: 256 }) ?? undefined,
-  });
-}
-
 /**
  * Awards XP for one message. Returns what changed so the caller can log it,
  * or null when the message does not earn anything.
@@ -233,7 +213,6 @@ module.exports = {
   awardMessage,
   entries,
   handleMessage,
-  leaderboardCard,
   levelFromXp,
   levelUpCard,
   positionOf,

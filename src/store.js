@@ -69,6 +69,8 @@ function defaultGuild() {
       kicks: 0,
       lastKickAt: null,
     },
+    // Chat and voice counters behind /scoreboard: { messages, voiceSeconds, voiceSince }.
+    activityStats: { users: {} },
     spawners: { buy: {}, sell: {}, panelChannelId: null, panelMessageId: null },
     stream: {
       enabled: true,
@@ -155,6 +157,8 @@ class Store {
       sell: { ...(guild.spawners?.sell ?? {}) },
     };
     guild.stream = { ...defaults.stream, ...guild.stream };
+    guild.activityStats = { ...defaults.activityStats, ...guild.activityStats };
+    guild.activityStats.users = { ...(guild.activityStats?.users ?? {}) };
     guild.counters = { ...defaults.counters, ...guild.counters };
     return guild;
   }

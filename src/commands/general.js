@@ -100,7 +100,9 @@ async function execute(interaction, { client }) {
         name: '📈 Levels',
         value: [
           '`/level rank [user]` — level, rank, XP and progress',
-          '`/level top` — the 10 members with the most XP',
+          '`/level top` — every member’s XP, ten per page',
+          '`/scoreboard [type]` — switch between Levels, Messages and Voice time',
+          'Use ◀️ Back and ▶️ Next under a leaderboard to see everyone',
           '`/level settings` — XP per message, cooldown, announce channel (owner and co-owner only)',
           '`/level setxp user:@member xp:<n>` — set total XP (owner and co-owner only)',
         ].join('\n'),

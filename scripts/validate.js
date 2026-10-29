@@ -2026,10 +2026,6 @@ test('the leaderboard orders by XP and rank cards show progress', () => {
   assert.ok(text.includes('rank #2'), 'shows the leaderboard place');
   assert.ok(/\d+\/\d+ XP/.test(text), 'shows XP progress');
   assert.ok(text.includes('made by seraphum'));
-
-  const top = textOf(levels.leaderboardCard({ name: 'Arcane', iconURL: () => null }, settings));
-  assert.ok(top.includes('<@b>') && top.includes('Level 4'), 'leaderboard shows levels (900 XP)');
-  assert.ok(!top.includes('<@c>'), 'members without XP are hidden');
 });
 
 test('only the owner and co-owner can set XP', async () => {
@@ -2970,14 +2966,218 @@ test('leaderboards use the custom trophy emoji', () => {
       .toJSON()
       .components.map((component) => component.content ?? '')
       .join('\n');
+  const scoreboard = require('../src/lib/scoreboard');
   assert.match(
-    text(levels.leaderboardCard(guild, { levels: { users: { a: { xp: 500 } } } })),
+    text(scoreboard.card(guild, { levels: { users: { a: { xp: 500 } } } }, { type: 'levels' })),
     /<a:trophy:1565217609174098052> TOP MEMBERS/,
   );
   assert.match(
     text(vouchBoard.leaderboardCard(guild, { vouches: { a: 3 } })),
     /<a:trophy:1565217609174098052> TOP VOUCHED/,
   );
+});
+
+console.log('\nScoreboard');
+
+function buttonsOf(payload) {
+  const found = [];
+  const walk = (node) => {
+    if (!node) return;
+    if (typeof node.toJSON === 'function') return walk(node.toJSON());
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (typeof node === 'object') {
+      if (typeof node.custom_id === 'string') found.push(node);
+      for (const value of Object.values(node)) {
+        if (value && typeof value === 'object') walk(value);
+      }
+    }
+  };
+  walk(payload.components);
+  return found;
+}
+
+const scoreboard = require('../src/lib/scoreboard');
+const fakeBoardStore = (settings) => ({ guild: () => settings, save: () => {} });
+
+test('messages and voice time are counted per member', () => {
+  const settings = { levels: { users: {} }, activityStats: { users: {} } };
+  const store = fakeBoardStore(settings);
+
+  scoreboard.recordMessage(store, 'g', 'a');
+  scoreboard.recordMessage(store, 'g', 'a');
+  scoreboard.recordMessage(store, 'g', 'b');
+
+  const chat = scoreboard.entriesFor(settings, 'messages');
+  assert.deepEqual(chat.map((entry) => entry.id), ['a', 'b'], 'most messages first');
+  assert.equal(chat[0].value, 2);
+
+  // Messages the level store already counted still show on the chat board.
+  settings.levels.users.c = { xp: 0, messages: 40 };
+  const seeded = scoreboard.entriesFor(settings, 'messages');
+  assert.deepEqual(seeded.map((entry) => entry.id), ['c', 'a', 'b']);
+  assert.equal(seeded[0].value, 40);
+
+  const start = 1_000_000;
+  assert.equal(scoreboard.startVoice(store, settings, 'a', start), true);
+  assert.equal(
+    scoreboard.startVoice(store, settings, 'a', start + 5_000),
+    false,
+    'a second join does not restart the session',
+  );
+  assert.equal(scoreboard.endVoice(store, settings, 'a', start + 90 * 60 * 1000), 5400);
+  assert.equal(
+    scoreboard.endVoice(store, settings, 'a', start + 100_000),
+    0,
+    'a closed session cannot be counted twice',
+  );
+  assert.equal(scoreboard.entriesFor(settings, 'voice')[0].value, 5400);
+
+  assert.equal(scoreboard.formatVoice(45), '<1m');
+  assert.equal(scoreboard.formatVoice(120), '2m');
+  assert.equal(scoreboard.formatVoice(3 * 3600), '3h');
+  assert.equal(scoreboard.formatVoice(5400), '1h 30m');
+  assert.equal(scoreboard.formatVoice(0), '0m');
+});
+
+test('voice sessions follow joins, moves and leaves', () => {
+  const settings = { activityStats: { users: {} }, memberCountChannelId: 'counter' };
+  const store = fakeBoardStore(settings);
+  const guild = { id: 'g', afkChannelId: 'afk' };
+  const member = { id: 'u1', user: { bot: false } };
+  const state = (channelId) => ({
+    guild,
+    member,
+    channel: channelId ? { id: channelId } : null,
+  });
+
+  scoreboard.handleVoiceState(state(null), state('v1'), { store });
+  const joinedAt = settings.activityStats.users.u1.voiceSince;
+  assert.ok(joinedAt, 'joining voice starts a session');
+
+  scoreboard.handleVoiceState(state('v1'), state('v2'), { store });
+  assert.equal(
+    settings.activityStats.users.u1.voiceSince,
+    joinedAt,
+    'moving channels keeps the same session',
+  );
+
+  scoreboard.handleVoiceState(state('v2'), state(null), { store });
+  assert.equal(settings.activityStats.users.u1.voiceSince, null, 'leaving closes the session');
+
+  scoreboard.handleVoiceState(state(null), state('afk'), { store });
+  scoreboard.handleVoiceState(state(null), state('counter'), { store });
+  assert.equal(
+    settings.activityStats.users.u1.voiceSince,
+    null,
+    'the AFK and member-counter channels never count',
+  );
+
+  const botState = (channelId) => ({
+    guild,
+    member: { id: 'bot1', user: { bot: true } },
+    channel: channelId ? { id: channelId } : null,
+  });
+  scoreboard.handleVoiceState(botState(null), botState('v1'), { store });
+  assert.equal(settings.activityStats.users.bot1, undefined, 'bots are not tracked');
+});
+
+test('the scoreboard pages through every member and switches board', () => {
+  const users = {};
+  for (let i = 1; i <= 25; i += 1) users[`u${i}`] = { xp: i * 100, messages: i };
+  const settings = { levels: { users }, activityStats: { users: {} } };
+  const guild = { name: 'Nemino', iconURL: () => null, emojis: { cache: { find: () => undefined } } };
+
+  const first = scoreboard.card(guild, settings, { type: 'levels' });
+  const firstText = textOf(first);
+  assert.ok(firstText.includes('25 members · page 1/3'), '25 members is three pages');
+  assert.ok(firstText.includes('<@u25>') && firstText.includes('2,500 XP'), 'best XP first');
+  assert.ok(!firstText.includes('<@u15>'), 'only ten members per page');
+  assert.ok(firstText.includes('made by seraphum'));
+
+  const tabs = buttonsOf(first).map((button) => button.custom_id);
+  assert.ok(tabs.includes('scoreboard:messages:1'), 'messages tab');
+  assert.ok(tabs.includes('scoreboard:voice:1'), 'voice tab');
+
+  const firstButtons = buttonsOf(first);
+  assert.equal(
+    firstButtons.find((button) => button.custom_id === 'scoreboard:levels:0').disabled,
+    true,
+    'back is greyed out on the first page',
+  );
+  assert.equal(
+    firstButtons.find((button) => button.custom_id === 'scoreboard:levels:2').disabled,
+    false,
+    'next is available on the first page',
+  );
+
+  const lastText = textOf(scoreboard.card(guild, settings, { type: 'levels', page: 99 }));
+  assert.ok(lastText.includes('page 3/3'), 'a page past the end is clamped');
+  assert.ok(lastText.includes('<@u1>'), 'the last page holds the lowest XP');
+
+  const lastButtons = buttonsOf(scoreboard.card(guild, settings, { type: 'levels', page: 3 }));
+  assert.equal(
+    lastButtons.find((button) => button.custom_id === 'scoreboard:levels:4').disabled,
+    true,
+    'next is greyed out on the last page',
+  );
+  assert.equal(
+    lastButtons.find((button) => button.custom_id === 'scoreboard:levels:2').disabled,
+    false,
+  );
+
+  settings.activityStats.users = { a: { messages: 900 }, b: { messages: 12, voiceSeconds: 7200 } };
+  const chat = textOf(scoreboard.card(guild, settings, { type: 'messages' }));
+  assert.ok(chat.includes('TOP CHATTERS') && chat.includes('**900** messages'));
+  const voice = textOf(scoreboard.card(guild, settings, { type: 'voice' }));
+  assert.ok(voice.includes('TOP VOICE') && voice.includes('**2h** in voice'));
+  assert.ok(!voice.includes('<@a>'), 'members with no voice time are hidden');
+
+  const messagesTab = buttonsOf(scoreboard.card(guild, settings, { type: 'messages' }));
+  assert.equal(
+    messagesTab.find((button) => button.custom_id === 'scoreboard:messages:1').style,
+    1,
+    'the open tab is highlighted',
+  );
+
+  const empty = scoreboard.card(guild, { levels: { users: {} }, activityStats: { users: {} } }, { type: 'voice' });
+  assert.ok(textOf(empty).includes('Nothing tracked yet'));
+});
+
+test('the level board opens the scoreboard and its buttons page it', async () => {
+  const level = require('../src/commands/scoreboard');
+  assert.equal(typeof level.handleButton, 'function');
+
+  const settings = {
+    levels: { users: { a: { xp: 300 }, b: { xp: 100 } } },
+    activityStats: { users: { a: { messages: 4 } } },
+  };
+  const store = fakeBoardStore(settings);
+  const guild = { name: 'Nemino', iconURL: () => null, emojis: { cache: { find: () => undefined } } };
+
+  const replies = [];
+  await level.execute(
+    {
+      guild,
+      user: { id: 'u1' },
+      options: { getString: () => 'messages' },
+      reply: async (payload) => replies.push(payload),
+    },
+    { store },
+  );
+  assert.ok(textOf(replies[0]).includes('TOP CHATTERS'), 'the type option opens that board');
+  assert.ok(replies[0].flags & 64, 'the card is ephemeral');
+
+  const updates = [];
+  await level.handleButton(
+    {
+      guild,
+      customId: 'scoreboard:levels:2',
+      update: async (payload) => updates.push(payload),
+    },
+    { store },
+  );
+  assert.ok(textOf(updates[0]).includes('TOP MEMBERS'));
+  assert.ok(!(updates[0].flags & 64), 'update keeps the ephemeral message as it was');
 });
 
 Promise.all(pendingTests).then(() => {

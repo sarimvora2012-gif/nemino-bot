@@ -26,6 +26,7 @@ A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **a
 | 🔢 Member counter | A locked voice channel at the very top of the server, named `Members - <count>`, that updates as members join and leave |
 | 🧑‍💼 Staff guide | `!staffguide` posts a categorized command guide for new and existing staff, with rules/workflow links |
 | 🎨 Components V2 | All new bot messages use Discord Components V2 containers, sections and text displays; long cards are capped at Discord's 4000-character limit |
+| 🏆 Scoreboard | `/scoreboard` switches between levels, messages and voice-time leaderboards; every ranked member, ten per page with back and next buttons |
 | ⚙️ Config | Staff role, log channel, ticket category, transcript channel, LOA role, vouch channels and vouch admin role, all per server |
 
 Everything is stored per server in `data/data.json`, so settings, tickets, strikes and applications survive restarts.
@@ -320,19 +321,33 @@ The panel is deliberately one plain message line — `Vouches must be in the for
 
 Self-vouches and vouches for bots are refused. `!vouchadd` works for the server owner, anyone whose role name contains “owner” (e.g. Co-Owner), and any role set with `/config set vouch_admin_role:@role`; staff without one of those cannot add vouches. The “owner” name match ignores the font, so restyled roles such as `👑 ᴄᴏ-ᴏᴡɴᴇʀ` still count. Manual additions are logged in the configured log channel.
 
-### Levels
+### Levels and the scoreboard
 | Command | Description |
 | --- | --- |
 | `/level rank [user]` | A member's level, rank, XP and progress bar |
-| `/level top` | The 10 members with the most XP |
+| `/level top` | The XP leaderboard, ten members per page with **◀️ Back** / **▶️ Next** |
+| `/scoreboard [type]` | Switch between the **Levels**, **Messages** and **Voice time** boards |
 
-Every leaderboard (`/level top` and `/vouch leaderboard`) uses the server's own **trophy** emoji when one exists, falling back to 🏆 if it is missing.
+Every leaderboard (`/level top`, `/scoreboard` and `/vouch leaderboard`) uses the server's own **trophy** emoji when one exists, falling back to 🏆 if it is missing.
 | `/level settings [enabled] [announce] [announce_channel] [xp_min] [xp_max] [cooldown]` | View or change XP earning (owner and co-owner only) |
 | `/level setxp user:@member xp:<n>` | Set a member's total XP — owner and co-owner only |
 
 Every message earns **15–25 XP** (random per message) with a **20-second cooldown**, so chatting normally levels someone while spam cannot. Bots, DMs and non-text channels are ignored. The curve is `5n² + 50n + 100` XP per level — 100 XP to level 1, 155 to level 2, 220 to level 3 — so the first levels come fast and later ones stretch.
 
 Level-ups post a small card in the channel where they happened, or in the channel set with `/level settings announce_channel:#channel`; `announce:false` keeps them silent and the levels still count. XP is saved to `data/data.json` under `levels.users`, written at most once every 5 seconds instead of on every message, so a busy server does not hammer the disk.
+
+### Scoreboard
+The scoreboard is one card with three tabs — 📈 **ʟᴇᴠᴇʟꜱ**, 💬 **ᴍᴇꜱꜱᴀɢᴇꜱ** and 🔊 **ᴠᴏɪᴄᴇ** — plus **◀️ Back** and **▶️ Next** underneath. It always lists **every ranked member**, ten per page, so nobody is cut off after the top ten; the arrows grey out on the first and last page and each tab keeps its own page count. The card is ephemeral, so each person pages through their own copy without moving anybody else's.
+
+| Board | Counts | Saved as |
+| --- | --- | --- |
+| Levels | XP earned by chatting | `levels.users` |
+| Messages | Every message sent, even with XP turned off | `activityStats.users[].messages` |
+| Voice time | Seconds spent connected to voice | `activityStats.users[].voiceSeconds` |
+
+Messages are counted per server for members only — bots, DMs and the honeypot are not counted. Voice time is stored as a session start, so hours only cost a write when someone leaves; moving between two channels is one continuous session, and the **AFK channel** and the `Members - <count>` counter channel never count. Sessions are reopened on startup for whoever is already connected (time while the bot itself is offline is not counted), and closing sessions on shutdown keeps the time earned up to that moment.
+
+XP and message counts are separate, so the message board keeps working with `/level settings enabled:false`.
 
 Slash commands register themselves on startup: if the code's command set differs from what Discord has, the bot updates it and logs `[commands] … registered`. `npm run deploy` still works, but is no longer required after an update. Set `GUILD_ID` so the update lands instantly instead of waiting for Discord's global cache.
 
@@ -486,6 +501,7 @@ src/
   lib/honeypot.js       `!honeypot` panel and kick-on-message trap
   lib/welcome.js        new-member welcome card
   lib/membercount.js    locked `Members - <count>` voice channel and its updates
+  lib/scoreboard.js     `/scoreboard` boards, message and voice-time tracking
   commands/
     ticket.js           panel, ticket lifecycle, transcripts
     application.js      panel, questions, DM application flow, review buttons

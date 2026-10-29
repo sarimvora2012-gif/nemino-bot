@@ -4,6 +4,7 @@ const { SlashCommandBuilder, ChannelType, MessageFlags } = require('discord.js')
 const { embed, successEmbed, errorEmbed, COLORS } = require('../lib/helpers');
 const { isCoOwnerRole, isOwnerOrCoOwner } = require('../lib/roles');
 const levels = require('../lib/levels');
+const scoreboard = require('../lib/scoreboard');
 
 /** Only the server owner (Nemino) and co-owner roles may touch levels. */
 const canSetXp = isOwnerOrCoOwner;
@@ -18,7 +19,9 @@ const data = [
         .setDescription('Show a member’s level and XP')
         .addUserOption((opt) => opt.setName('user').setDescription('Member to show (defaults to you)')),
     )
-    .addSubcommand((sub) => sub.setName('top').setDescription('The 10 members with the most XP'))
+    .addSubcommand((sub) =>
+      sub.setName('top').setDescription('Every member’s XP, ten per page with back and next buttons'),
+    )
     .addSubcommand((sub) =>
       sub
         .setName('settings')
@@ -205,10 +208,9 @@ async function execute(interaction, { store }) {
   }
 
   if (sub === 'top') {
-    await interaction.reply({
-      ...levels.leaderboardCard(guild, settings),
-      allowedMentions: { parse: [] },
-    });
+    // The level board is one tab of the scoreboard, so the arrows and the
+    // levels/messages/voice switcher are always available from here too.
+    await interaction.reply(scoreboard.ephemeralCard(guild, settings, { type: 'levels' }));
     return;
   }
 

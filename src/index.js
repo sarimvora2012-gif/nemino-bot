@@ -39,6 +39,7 @@ const presence = require('./lib/presence');
 const rolefont = require('./lib/rolefont');
 const roleicons = require('./lib/roleicons');
 const roleping = require('./lib/roleping');
+const scoreboard = require('./lib/scoreboard');
 const spawnerBoard = require('./lib/spawners');
 const staffguide = require('./lib/staffguide');
 const steal = require('./lib/steal');
@@ -78,6 +79,7 @@ const componentModules = {
   loa: () => loa,
   spawner: () => spawnerBoard,
   roleicons: () => roleicons,
+  scoreboard: () => modules.scoreboard,
 };
 
 function getComponentModule(customId) {
@@ -95,8 +97,9 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.MessageContent,
+  GatewayIntentBits.GuildMembers,
+  GatewayIntentBits.GuildVoiceStates,
+  GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
   ],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
@@ -119,6 +122,9 @@ client.once(Events.ClientReady, (readyClient) => {
     .then((result) => logSync(result, process.env.GUILD_ID?.trim()))
     .catch((err) => console.error('[commands] Sync failed:', err.message));
   activity.startScheduler(context);
+  // Voice hours stop accruing while the bot is offline; reopen sessions for
+  // whoever is in a channel right now.
+  scoreboard.syncVoiceSessions(readyClient, store);
   modules.giveaway?.startScheduler(context);
   honeypot
     .verify(context)
@@ -141,6 +147,14 @@ client.on(Events.GuildMemberRemove, (member) => {
   membercount.queueUpdate(context, member.guild);
 });
 
+client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+  try {
+    scoreboard.handleVoiceState(oldState, newState, context);
+  } catch (err) {
+    console.error('[scoreboard] Voice state handler failed:', err.message);
+  }
+});
+
 client.on(Events.MessageCreate, (message) => {
   if (message.author?.bot) return;
 
@@ -152,6 +166,8 @@ client.on(Events.MessageCreate, (message) => {
   }
 
   if (!message.guild) return;
+
+  scoreboard.handleMessage(message, context);
 
   loa
     .handleMessage(message, context)
@@ -298,6 +314,7 @@ async function shutdown(signal) {
   membercount.stop();
   presence.stop();
   streams.stop();
+  scoreboard.flushVoiceSessions(store);
   await client.destroy().catch(() => {});
   process.exit(0);
 }
