@@ -16,6 +16,7 @@ const {
   ContainerBuilder,
   MessageFlags,
   ModalBuilder,
+  PermissionFlagsBits,
   SeparatorBuilder,
   SeparatorSpacingSize,
   StringSelectMenuBuilder,
@@ -101,6 +102,42 @@ function spawnerPermsRole(guild, settings) {
         /spawner\s*perm/.test(toPlain(String(role?.name ?? '')).toLowerCase()),
     ) ?? null
   );
+}
+
+/**
+ * The role that can change prices without Manage Server: the configured
+ * `spawner_manager_role`, then any role named "Spawner Manager" in any font.
+ */
+function spawnerManagerRole(guild, settings) {
+  const id = settings?.spawnerManagerRoleId;
+  if (id) {
+    const configured = guild?.roles?.cache?.get?.(id);
+    if (configured) return configured;
+  }
+  return (
+    guild?.roles?.cache?.find?.((role) => isSpawnerManagerName(role?.name)) ?? null
+  );
+}
+
+/** `Spawner Manager`, `ꜱᴘᴀᴡɴᴇʀ ᴍᴀɴᴀɢᴇʀ` and `✦ Spawner  Manager` all match. */
+function isSpawnerManagerName(name) {
+  const plain = toPlain(String(name ?? ''))
+    .toLowerCase()
+    .replace(/[^a-z]+/g, ' ')
+    .trim();
+  return plain === 'spawner manager';
+}
+
+/**
+ * True for the people who may set prices: Manage Server, or the Spawner
+ * Manager role. Deliberately not "administrator": running the shop is not a
+ * reason to hand out the rest of the admin commands.
+ */
+function canManagePrices(member, settings) {
+  if (!member) return false;
+  if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
+  const role = spawnerManagerRole(member.guild, settings);
+  return Boolean(role && member.roles?.cache?.has?.(role.id));
 }
 
 /**
@@ -584,9 +621,16 @@ async function handleMessage(message, { store }) {
   const guild = message.guild;
   const settings = store.guild(guild.id);
 
-  if (!message.member?.permissions?.has('ManageGuild') && !isStaff(message.member, settings)) {
+  if (!canManagePrices(message.member, settings) && !isStaff(message.member, settings)) {
     await message
-      .reply({ embeds: [errorEmbed('Only staff can post the spawner prices board.', 'Missing permissions')] })
+      .reply({
+        embeds: [
+          errorEmbed(
+            'Only staff, **Manage Server** or the **Spawner Manager** role can post the board.',
+            'Missing permissions',
+          ),
+        ],
+      })
       .catch(() => {});
     return;
   }
@@ -620,6 +664,7 @@ module.exports = {
   SPAWNER_TYPES,
   TICKET_CATEGORY_ID,
   applyPrice,
+  canManagePrices,
   ensurePanel,
   formatMillions,
   formatPrice,
@@ -630,10 +675,12 @@ module.exports = {
   parseAmount,
   pricedOptions,
   panelPayload,
+  isSpawnerManagerName,
   priceLine,
   refreshPanel,
   spawnerByKey,
   spawnerEmoji,
+  spawnerManagerRole,
   spawnerPermsRole,
   storedPanel,
   titleEmoji,

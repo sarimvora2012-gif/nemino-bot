@@ -256,6 +256,11 @@ async function execute(interaction, { store }) {
           inline: true,
         },
         {
+          name: 'Spawner manager role',
+          value: role(settings.spawnerManagerRoleId),
+          inline: true,
+        },
+        {
           name: 'Automatic activity checks',
           value: settings.activity.enabled ? 'Enabled — `/activity status`' : 'Disabled',
           inline: true,

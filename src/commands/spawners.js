@@ -43,9 +43,14 @@ async function execute(interaction, { store }) {
   const guild = interaction.guild;
   const settings = store.guild(guild.id);
 
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+  if (!spawners.canManagePrices(interaction.member, settings)) {
     await interaction.reply({
-      embeds: [errorEmbed('You need **Manage Server** to change spawner prices.', 'Missing permissions')],
+      embeds: [
+        errorEmbed(
+          'You need **Manage Server** or the **Spawner Manager** role to change spawner prices. An admin can create it with `!spawnermanager`.',
+          'Missing permissions',
+        ),
+      ],
       flags: MessageFlags.Ephemeral,
     });
     return;

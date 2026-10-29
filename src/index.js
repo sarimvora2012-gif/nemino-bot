@@ -42,6 +42,7 @@ const roleping = require('./lib/roleping');
 const staffname = require('./lib/staffname');
 const scoreboard = require('./lib/scoreboard');
 const spawnerBoard = require('./lib/spawners');
+const spawnerRole = require('./lib/spawnerrole');
 const staffguide = require('./lib/staffguide');
 const steal = require('./lib/steal');
 const streams = require('./lib/streams');
@@ -132,6 +133,9 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch((err) => console.error('[honeypot] Startup check failed:', err));
   membercount.start(context);
   streams.start(context);
+  spawnerRole
+    .syncPricePermissions(readyClient, store)
+    .catch((err) => console.error('[spawners] Permission sync failed:', err.message));
   modules.ticket
     ?.sweepClosedTickets(context)
     .catch((err) => console.error('[ticket] Cleanup failed:', err));
@@ -197,6 +201,9 @@ client.on(Events.MessageCreate, (message) => {
   spawnerBoard
     .handleMessage(message, context)
     .catch((err) => console.error('[spawners] Message handler failed:', err));
+  spawnerRole
+    .handleMessage(message, context)
+    .catch((err) => console.error('[spawnerrole] Message handler failed:', err));
   honeypot
     .handleMessage(message, context)
     .catch((err) => console.error('[honeypot] Message handler failed:', err));
