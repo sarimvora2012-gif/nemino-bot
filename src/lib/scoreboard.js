@@ -293,10 +293,21 @@ function viewerLine(all, type, viewerId, start) {
   return `📍 **Your rank** · \`#${place}\` ${detailFor(all[index], type)}`;
 }
 
+// Each button carries the action it performs, because a tab and an arrow can
+// point at the same board and page — two identical custom ids make Discord
+// refuse the whole message with COMPONENT_CUSTOM_ID_DUPLICATED.
+function tabId(type) {
+  return `scoreboard:tab:${type}`;
+}
+
+function pageId(type, page) {
+  return `scoreboard:page:${type}:${page}`;
+}
+
 function tabButton(type, current) {
   const board = BOARDS[type];
   return new ButtonBuilder()
-    .setCustomId(`scoreboard:${type}:1`)
+    .setCustomId(tabId(type))
     .setLabel(toSmallCaps(board.label))
     .setEmoji(board.emoji)
     .setStyle(type === current ? ButtonStyle.Primary : ButtonStyle.Secondary);
@@ -307,19 +318,39 @@ function rowsFor(type, page, pageCount) {
     new ActionRowBuilder().addComponents(TYPES.map((name) => tabButton(name, type))),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId(`scoreboard:${type}:${page - 1}`)
+        .setCustomId(pageId(type, page - 1))
         .setLabel(toSmallCaps('back'))
         .setEmoji('◀️')
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page <= 1),
       new ButtonBuilder()
-        .setCustomId(`scoreboard:${type}:${page + 1}`)
+        .setCustomId(pageId(type, page + 1))
         .setLabel(toSmallCaps('next'))
         .setEmoji('▶️')
         .setStyle(ButtonStyle.Secondary)
         .setDisabled(page >= pageCount),
     ),
   ];
+}
+
+/**
+ * Reads a scoreboard button id. Cards sent before the split carry
+ * `scoreboard:<type>:<page>` and keep working.
+ */
+function parseButtonId(customId) {
+  const parts = String(customId ?? '').split(':');
+  if (parts[0] !== 'scoreboard') return null;
+  if (parts[1] === 'tab') {
+    return TYPES.includes(parts[2]) ? { type: parts[2], page: 1 } : null;
+  }
+  if (parts[1] === 'page') {
+    const page = Number.parseInt(parts[3], 10);
+    return TYPES.includes(parts[2]) ? { type: parts[2], page: Number.isFinite(page) ? page : 1 } : null;
+  }
+  const legacyPage = Number.parseInt(parts[2], 10);
+  return TYPES.includes(parts[1])
+    ? { type: parts[1], page: Number.isFinite(legacyPage) ? legacyPage : 1 }
+    : null;
 }
 
 /**
@@ -469,6 +500,8 @@ module.exports = {
   detailFor,
   entriesFor,
   ephemeralCard,
+  pageId,
+  parseButtonId,
   flushVoiceSessions,
   formatVoice,
   handleMessage,
@@ -483,6 +516,7 @@ module.exports = {
   startVoice,
   statsStore,
   syncVoiceSessions,
+  tabId,
   viewerLine,
   voicePoints,
 };

@@ -30,18 +30,22 @@ async function execute(interaction, { store }) {
 }
 
 /**
- * Buttons are `scoreboard:<type>:<page>` — both the tab switcher and the page
- * arrows go through here. The card stays ephemeral, so each viewer pages their
- * own copy and never moves anybody else's.
+ * Both the tab switcher (`scoreboard:tab:<type>`) and the page arrows
+ * (`scoreboard:page:<type>:<page>`) come through here. The card stays
+ * ephemeral, so each viewer pages their own copy and never moves anybody
+ * else's view.
  */
 async function handleButton(interaction, { store }) {
-  const [, type, pageRaw] = String(interaction.customId).split(':');
-  const page = Number.parseInt(pageRaw, 10) || 1;
+  const target = scoreboard.parseButtonId(interaction.customId);
   const guild = interaction.guild;
-  if (!guild) return;
+  if (!target || !guild) return;
 
   await interaction.update(
-    scoreboard.card(guild, store.guild(guild.id), { type, page, viewerId: interaction.user?.id }),
+    scoreboard.card(guild, store.guild(guild.id), {
+      type: target.type,
+      page: target.page,
+      viewerId: interaction.user?.id,
+    }),
   );
 }
 

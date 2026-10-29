@@ -3135,20 +3135,32 @@ test('the scoreboard pages through every member and switches board', () => {
   assert.ok(firstText.includes('made by seraphum'));
 
   const tabs = buttonsOf(first).map((button) => button.custom_id);
-  assert.ok(tabs.includes('scoreboard:messages:1'), 'messages tab');
-  assert.ok(tabs.includes('scoreboard:voice:1'), 'voice tab');
+  assert.ok(tabs.includes('scoreboard:tab:messages'), 'messages tab');
+  assert.ok(tabs.includes('scoreboard:tab:voice'), 'voice tab');
 
   const firstButtons = buttonsOf(first);
   assert.equal(
-    firstButtons.find((button) => button.custom_id === 'scoreboard:levels:0').disabled,
+    firstButtons.find((button) => button.custom_id === 'scoreboard:page:levels:0').disabled,
     true,
     'back is greyed out on the first page',
   );
   assert.equal(
-    firstButtons.find((button) => button.custom_id === 'scoreboard:levels:2').disabled,
+    firstButtons.find((button) => button.custom_id === 'scoreboard:page:levels:2').disabled,
     false,
     'next is available on the first page',
   );
+
+  // Discord rejects a message whose buttons repeat a custom id, which happens
+  // as soon as an arrow points at the page the active tab opens.
+  for (const type of scoreboard.TYPES) {
+    for (let page = 1; page <= 3; page += 1) {
+      const ids = buttonsOf(scoreboard.card(guild, settings, { type, page })).map(
+        (button) => button.custom_id,
+      );
+      assert.equal(new Set(ids).size, ids.length, `${type} page ${page} has unique button ids`);
+      assert.ok(ids.length >= 5, 'three tabs and two arrows');
+    }
+  }
 
   const lastText = textOf(scoreboard.card(guild, settings, { type: 'levels', page: 99 }));
   assert.ok(lastText.includes('page 3/3'), 'a page past the end is clamped');
@@ -3156,12 +3168,12 @@ test('the scoreboard pages through every member and switches board', () => {
 
   const lastButtons = buttonsOf(scoreboard.card(guild, settings, { type: 'levels', page: 3 }));
   assert.equal(
-    lastButtons.find((button) => button.custom_id === 'scoreboard:levels:4').disabled,
+    lastButtons.find((button) => button.custom_id === 'scoreboard:page:levels:4').disabled,
     true,
     'next is greyed out on the last page',
   );
   assert.equal(
-    lastButtons.find((button) => button.custom_id === 'scoreboard:levels:2').disabled,
+    lastButtons.find((button) => button.custom_id === 'scoreboard:page:levels:2').disabled,
     false,
   );
 
@@ -3194,7 +3206,7 @@ test('the scoreboard pages through every member and switches board', () => {
 
   const messagesTab = buttonsOf(scoreboard.card(guild, settings, { type: 'messages' }));
   assert.equal(
-    messagesTab.find((button) => button.custom_id === 'scoreboard:messages:1').style,
+    messagesTab.find((button) => button.custom_id === 'scoreboard:tab:messages').style,
     1,
     'the open tab is highlighted',
   );
@@ -3336,13 +3348,28 @@ test('the level board opens the scoreboard and its buttons page it', async () =>
   await level.handleButton(
     {
       guild,
-      customId: 'scoreboard:levels:2',
+      customId: 'scoreboard:page:levels:2',
       update: async (payload) => updates.push(payload),
     },
     { store },
   );
   assert.ok(textOf(updates[0]).includes('TOP MEMBERS'));
   assert.ok(!(updates[0].flags & 64), 'update keeps the ephemeral message as it was');
+
+  await level.handleButton(
+    {
+      guild,
+      customId: 'scoreboard:tab:messages',
+      update: async (payload) => updates.push(payload),
+    },
+    { store },
+  );
+  assert.ok(textOf(updates[1]).includes('TOP CHATTERS'), 'a tab opens its board on page 1');
+
+  // Cards posted before the id split still respond.
+  assert.deepEqual(scoreboard.parseButtonId('scoreboard:voice:2'), { type: 'voice', page: 2 });
+  assert.deepEqual(scoreboard.parseButtonId('scoreboard:tab:voice'), { type: 'voice', page: 1 });
+  assert.equal(scoreboard.parseButtonId('scoreboard:nonsense:1'), null);
 });
 
 Promise.all(pendingTests).then(() => {
