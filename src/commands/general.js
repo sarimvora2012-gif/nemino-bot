@@ -121,13 +121,12 @@ async function execute(interaction, { client }) {
       {
         name: '🦴 Spawner prices',
         value: [
-          '`/setspawnerprice spawner:<type> type:<Buying|Selling> price:<13.5>` — admin or Spawner Manager',
+          '`/setspawnerprice spawner:<type> type:<Buying|Selling> price:<13.5>` — spawner perms role only',
           'Decimals are allowed, up to 2 places — `13`, `12.5`, `0.75`',
           'Types: Skeleton, Creeper, Iron Golem, Zombified Piglin, Pig, Cow',
           'The board in <#1528595505255288893> updates itself after every change',
           'Spawners without a price are simply not shown',
           '`!spawnerprices` — post or refresh the board in the current channel',
-          '`!spawnermanager` — create the Spawner Manager role (admin)',
           '**Buy Spawners** and **Sell Spawners** open a ticket',
         ].join('\n'),
       },

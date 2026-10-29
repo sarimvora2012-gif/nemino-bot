@@ -47,7 +47,7 @@ async function execute(interaction, { store }) {
     await interaction.reply({
       embeds: [
         errorEmbed(
-          'You need **Manage Server** or the **Spawner Manager** role to change spawner prices. An admin can create it with `!spawnermanager`.',
+          'Only the **spawner perms** role (or **Manage Server**) can change spawner prices.',
           'Missing permissions',
         ),
       ],

@@ -279,16 +279,17 @@ Each suggestion shows the text, the member who submitted it, and live vote count
 ### Spawner prices
 | Command | Who | Description |
 | --- | --- | --- |
-| `/setspawnerprice spawner:<type> type:Buying\|Selling price:<number>` | Manage Server or Spawner Manager | Sets one price on the board |
-| `!spawnerprices` | Staff or Spawner Manager | Posts or refreshes the board in the current channel |
-| `!spawnermanager` | Manage Server | Creates the **Spawner Manager** role and lets it change prices |
+| `/setspawnerprice spawner:<type> type:Buying\|Selling price:<number>` | Spawner perms role only | Sets one price on the board |
+| `!spawnerprices` | Staff or spawner perms | Posts or refreshes the board in the current channel |
 | **Buy Spawners** / **Sell Spawners** | Everyone | Opens a spawner ticket in <#1556430475898396862> |
 
 The board lives in <#1528595505255288893> and is a single message that is edited in place, so prices never stack up as new messages. Prices are entered in millions as numbers only, with up to **2 decimals** — `13` is shown as **13M each**, `12.5` as **12.5M each** and `0.75` as **0.75M each**. Spawner rows always appear in this order: Skeleton, Creeper, Iron Golem, Zombified Piglin, Pig, Cow, and a spawner with no price yet is simply not listed (a side with no prices at all says so instead of showing empty rows).
 
 Each row uses the server's custom emoji for that spawner when one exists (names are matched case-insensitively: `skeleton`, `creeper`, `irongolem`, `zombiepiglin`, `pig`, `cow`, and `Spawner_with_fire` for the title) and otherwise falls back to a plain emoji — the current server emojis are already picked up. Add or steal more with `!steal` and the board uses them on its next refresh; no code change needed.
 
-**Spawner Manager.** `!spawnermanager` creates a role called `Spawner Manager` (no server permissions at all — not Manage Server, not Administrator) and gives it exactly one extra ability: `/setspawnerprice`. That works through a guild command permission on the command itself, so the role's members see it in their command picker while everyone else keeps seeing nothing. The role id is saved, an existing `Spawner Manager` role in any font is reused rather than duplicated, and because re-registering commands can drop the override, the bot puts it back every time it starts. Give the role to whoever runs spawner deals and they can keep prices current without touching anything else.
+**Who can change prices.** Only members with the **spawner perms** role — the role named in `/config set spawner_perms_role:@role`, or any role whose name reads as “spawner perms” in any font when that is unset. Nobody else: a staff rank, a mod role or `!spawnerprices` access is not enough. Manage Server is still accepted so the owner can never lock themselves out.
+
+`/setspawnerprice` is registered for Manage Server, which normally hides it from everyone else, so the bot also allows the spawner perms role on that one command through a guild command permission. The role's members see it in their command picker and can set prices; they get no other admin power. Re-registering commands can drop that permission, so the bot re-applies it at every startup after the commands sync. If the command is still hidden, tick the role under **Server Settings → Integrations → `/setspawnerprice`**.
 
 Clicking a button opens a private ticket in the spawner category with the current prices listed for that side, `/ticket close` support and transcripts. The ticket pings the **spawner perms** role once so the people who run spawner deals see it straight away: `/config set spawner_perms_role:@role` picks it explicitly, and if that is unset the bot uses whichever role reads as “spawner perms” in any font. That role is also given access to the ticket channel, otherwise it could be pinged into a room it cannot open. If the server has no such role, the ticket still opens — just without a ping.
 
@@ -492,7 +493,6 @@ The guide covers only what staff need day to day: tickets, applications, giveawa
 | `!vouchsetup` | Post the vouch panel (admin) |
 | `!stafffont [@role]` | Rename the staff roles into small caps (Manage Server) |
 | `!staffname` | Put every staff member's rank in front of their name (Manage Server) |
-| `!spawnermanager` | Create the Spawner Manager role and allow it to change spawner prices (Manage Server) |
 
 ## Project layout
 
@@ -554,7 +554,7 @@ All embeds are created through `embed()` in `src/lib/helpers.js`, which adds the
 | `:vouch @user` does nothing | The channel name must contain “vouch”, or set it with `/config set vouch_channel:#channel`; the message must mention a member |
 | Nicknames are not updating | The bot's role needs **Manage Nicknames** and must be above the member's highest role; server owners cannot be renamed. Fix the permission, then run `!vouchresync` and `!staffname` |
 | Staff names have no rank in front | Role changes rename automatically now, so existing staff need one `!staffname` run; it also needs `/config set staff_role:@role` and **Manage Nicknames** |
-| Spawner Manager cannot set prices | The role must have `/setspawnerprice` allowed in **Server Settings → Integrations**; re-run `!spawnermanager` or restart the bot to apply it automatically |
+| Spawner perms holders cannot set prices | The role must have `/setspawnerprice` allowed in **Server Settings → Integrations**; restart the bot to apply it automatically, or tick the role there |
 | A `_link` option says no channel found | The link must belong to this server and the bot must be able to see that channel |
 | A `_link` option says “not a channel link” | Copy it with right-click → **Copy Channel Link**; `<#channel>` and bare IDs work too |
 | `!stafffont` leaves top roles alone | Those roles sit at or above the bot's own role; drag the bot role above them and run it again |

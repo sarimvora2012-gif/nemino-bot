@@ -31,8 +31,6 @@ function defaultGuild() {
     highStaffRoleId: null,
     // Role pinged in spawner buy/sell tickets; falls back to any "spawner perms" role.
     spawnerPermsRoleId: null,
-    // Role allowed to change prices without Manage Server; made by `!spawnermanager`.
-    spawnerManagerRoleId: null,
     vouches: {},
     vouchGiven: {},
     vouchPanels: {},

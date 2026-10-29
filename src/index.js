@@ -42,7 +42,7 @@ const roleping = require('./lib/roleping');
 const staffname = require('./lib/staffname');
 const scoreboard = require('./lib/scoreboard');
 const spawnerBoard = require('./lib/spawners');
-const spawnerRole = require('./lib/spawnerrole');
+const spawnerAccess = require('./lib/spawneraccess');
 const staffguide = require('./lib/staffguide');
 const steal = require('./lib/steal');
 const streams = require('./lib/streams');
@@ -121,7 +121,12 @@ client.once(Events.ClientReady, (readyClient) => {
     guildId: process.env.GUILD_ID?.trim(),
     commands: commandJson,
   })
-    .then((result) => logSync(result, process.env.GUILD_ID?.trim()))
+    .then((result) => {
+      logSync(result, process.env.GUILD_ID?.trim());
+      // After the commands exist: the spawner perms role is allowed on the
+      // price command, which re-registering commands can otherwise drop.
+      return spawnerAccess.syncPriceAccess(readyClient, store);
+    })
     .catch((err) => console.error('[commands] Sync failed:', err.message));
   activity.startScheduler(context);
   // Voice hours stop accruing while the bot is offline; reopen sessions for
@@ -133,9 +138,6 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch((err) => console.error('[honeypot] Startup check failed:', err));
   membercount.start(context);
   streams.start(context);
-  spawnerRole
-    .syncPricePermissions(readyClient, store)
-    .catch((err) => console.error('[spawners] Permission sync failed:', err.message));
   modules.ticket
     ?.sweepClosedTickets(context)
     .catch((err) => console.error('[ticket] Cleanup failed:', err));
@@ -201,9 +203,6 @@ client.on(Events.MessageCreate, (message) => {
   spawnerBoard
     .handleMessage(message, context)
     .catch((err) => console.error('[spawners] Message handler failed:', err));
-  spawnerRole
-    .handleMessage(message, context)
-    .catch((err) => console.error('[spawnerrole] Message handler failed:', err));
   honeypot
     .handleMessage(message, context)
     .catch((err) => console.error('[honeypot] Message handler failed:', err));

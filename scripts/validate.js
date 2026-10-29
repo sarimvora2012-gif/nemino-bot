@@ -2652,7 +2652,7 @@ test('the member line is a custom status so it is not prefixed with a verb', () 
 
 console.log('\nSpawner prices & media');
 const spawners = require('../src/lib/spawners');
-const spawnerrole = require('../src/lib/spawnerrole');
+const spawneraccess = require('../src/lib/spawneraccess');
 const { ApplicationCommandPermissionType } = require('discord.js');
 const media = require('../src/commands/media');
 
@@ -2780,20 +2780,10 @@ test('spawner tickets ping the spawner perms role', () => {
   );
 });
 
-test('the Spawner Manager name is recognised in any font', () => {
-  assert.equal(spawners.isSpawnerManagerName('Spawner Manager'), true);
-  assert.equal(spawners.isSpawnerManagerName('ꜱᴘᴀᴡɴᴇʀ ᴍᴀɴᴀɢᴇʀ'), true);
-  assert.equal(spawners.isSpawnerManagerName('✦ spawner-manager'), true);
-  assert.equal(spawners.isSpawnerManagerName('Spawner Manager Trainee'), false);
-  assert.equal(spawners.isSpawnerManagerName('Spawner Perms'), false);
-  assert.equal(spawners.isSpawnerManagerName(''), false);
-});
-
-test('only Manage Server or the Spawner Manager role can change prices', () => {
-  const manager = { id: 'r-manager', name: 'ꜱᴘᴀᴡɴᴇʀ ᴍᴀɴᴀɢᴇʀ' };
-  const roles = [manager, { id: 'r-other', name: 'Shop Hand' }];
-  const guild = {
+function priceRoleGuild(roles) {
+  return {
     id: 'g-1',
+    name: 'Server',
     roles: {
       cache: {
         get: (id) => roles.find((role) => role.id === id) ?? null,
@@ -2801,140 +2791,94 @@ test('only Manage Server or the Spawner Manager role can change prices', () => {
       },
     },
   };
+}
+
+test('only the spawner perms role or Manage Server can change prices', () => {
+  const roles = [
+    { id: 'r-perms', name: 'ꜱᴘᴀᴡɴᴇʀ ᴘᴇʀᴍꜱ' },
+    { id: 'r-mod', name: 'ᴍᴏᴅ' },
+  ];
+  const guild = priceRoleGuild(roles);
   const member = ({ admin = false, held = [] } = {}) => ({
     guild,
     permissions: { has: () => admin },
     roles: { cache: { has: (id) => held.includes(id) } },
   });
 
-  assert.equal(spawners.canManagePrices(member({ admin: true }), {}), true, 'admins');
-  assert.equal(spawners.canManagePrices(member({ held: ['r-manager'] }), {}), true, 'role holders');
-  assert.equal(spawners.canManagePrices(member({ held: ['r-manager'] }), { spawnerManagerRoleId: 'deleted' }), true);
-  assert.equal(spawners.canManagePrices(member({ held: ['r-other'] }), {}), false, 'other roles');
-  assert.equal(spawners.canManagePrices(member(), {}), false, 'plain members');
+  assert.equal(spawners.canManagePrices(member({ held: ['r-perms'] }), {}), true, 'role holders, any font');
+  assert.equal(
+    spawners.canManagePrices(member({ held: ['r-perms'] }), { spawnerPermsRoleId: 'r-perms' }),
+    true,
+    'the configured role works too',
+  );
+  assert.equal(spawners.canManagePrices(member({ admin: true }), {}), true, 'Manage Server keeps access');
+  assert.equal(spawners.canManagePrices(member({ held: ['r-mod'] }), {}), false, 'other roles cannot');
+  assert.equal(spawners.canManagePrices(member(), {}), false, 'plain members cannot');
   assert.equal(spawners.canManagePrices(null, {}), false);
+  assert.equal(
+    spawners.canManagePrices(member({ held: ['r-perms'] }), { spawnerPermsRoleId: 'deleted' }),
+    true,
+    'a stale configured id still falls back to the role name',
+  );
 });
 
-test('spawnerManagerRole prefers the saved id and falls back to the name', () => {
-  const roles = [
-    { id: 'r-saved', name: 'Spawner Manager' },
-    { id: 'r-other', name: 'Shop Hand' },
-  ];
+function spawnerAccessRig({ existingPermissions = [], role = null } = {}) {
+  const granted = [];
   const guild = {
     id: 'g-1',
     roles: {
       cache: {
-        get: (id) => roles.find((role) => role.id === id) ?? null,
-        find: (predicate) => roles.find(predicate) ?? null,
-      },
-    },
-  };
-
-  assert.equal(spawners.spawnerManagerRole(guild, { spawnerManagerRoleId: 'r-saved' }).id, 'r-saved');
-  assert.equal(spawners.spawnerManagerRole(guild, {}).id, 'r-saved', 'found by name');
-  assert.equal(
-    spawners.spawnerManagerRole(guild, { spawnerManagerRoleId: 'deleted' }).id,
-    'r-saved',
-    'a stale id falls back to the name',
-  );
-  assert.equal(spawners.spawnerManagerRole({ id: 'g', roles: { cache: { find: () => null } } }, {}), null);
-});
-
-function spawnerRoleRig({ canManageRoles = true, existing = null } = {}) {
-  const created = [];
-  const granted = [];
-  const guild = {
-    id: 'g-1',
-    name: 'Server',
-    me: { user: { username: 'bot' } },
-    members: {
-      me: { permissions: { has: () => canManageRoles } },
-    },
-    roles: {
-      cache: { get: () => existing, find: () => existing },
-      create: async (options) => {
-        created.push(options);
-        return { id: 'r-new', name: options.name };
+        get: (id) => (role && role.id === id ? role : null),
+        find: (predicate) => (role && predicate(role) ? role : null),
       },
     },
     commands: {
       fetch: async () => [{ id: 'cmd-price', name: 'setspawnerprice' }],
       permissions: {
         add: async (payload) => granted.push(payload),
-        fetch: async () => [],
+        fetch: async () => existingPermissions,
       },
     },
   };
-  return { guild, created, granted };
+  return { guild, granted };
 }
 
-test('!spawnermanager creates the role and unlocks the price command', async () => {
-  const { guild, created, granted } = spawnerRoleRig();
-  const settings = {};
-  const result = await spawnerrole.ensureSpawnerManagerRole({}, guild, settings);
+test('the spawner perms role is allowed on /setspawnerprice', async () => {
+  const role = { id: 'r-perms', name: 'ꜱᴘᴀᴡɴᴇʀ ᴘᴇʀᴍꜱ' };
+  const { guild, granted } = spawnerAccessRig({ role });
+  const grantedResult = await spawneraccess.grantPriceAccess({}, guild, role);
 
-  assert.equal(result.ok, true);
-  assert.equal(result.created, true);
-  assert.equal(result.granted.ok, true);
-  assert.equal(created.length, 1);
-  assert.equal(created[0].name, 'Spawner Manager');
-  assert.deepEqual(created[0].permissions, [], 'the role hands out no server permissions');
-  assert.equal(settings.spawnerManagerRoleId, 'r-new', 'the id is remembered');
+  assert.equal(grantedResult.ok, true);
   assert.deepEqual(granted[0], {
     command: 'cmd-price',
-    permissions: [
-      { id: 'r-new', type: ApplicationCommandPermissionType.Role, permission: true },
-    ],
+    permissions: [{ id: 'r-perms', type: ApplicationCommandPermissionType.Role, permission: true }],
   });
-
-  const text = spawnerrole.resultEmbed(guild, result).data.description;
-  assert.ok(text.includes('no server permissions'), 'the embed says what it can and cannot do');
-  assert.ok(text.includes('/setspawnerprice'), 'names the command it unlocked');
 });
 
-test('!spawnermanager reuses an existing role instead of stacking copies', async () => {
-  const existing = { id: 'r-old', name: 'ꜱᴘᴀᴡɴᴇʀ ᴍᴀɴᴀɢᴇʀ' };
-  const { guild, created, granted } = spawnerRoleRig({ existing });
+test('startup gives the role access once and skips it when already allowed', async () => {
+  const role = { id: 'r-perms', name: 'Spawner Perms' };
   const settings = {};
-  const result = await spawnerrole.ensureSpawnerManagerRole({}, guild, settings);
+  const store = { guild: () => settings };
 
-  assert.equal(result.created, false);
-  assert.equal(created.length, 0, 'nothing new is made');
-  assert.equal(settings.spawnerManagerRoleId, 'r-old');
-  assert.equal(granted[0].permissions[0].id, 'r-old');
-});
+  const first = spawnerAccessRig({ role });
+  await spawneraccess.syncPriceAccess({ guilds: { cache: new Map([[role.id, first.guild]]) } }, store);
+  assert.equal(first.granted.length, 1, 'granted on the first start');
 
-test('!spawnermanager explains a missing Manage Roles permission', async () => {
-  const { guild, created } = spawnerRoleRig({ canManageRoles: false });
-  const result = await spawnerrole.ensureSpawnerManagerRole({}, guild, {});
-
-  assert.equal(result.ok, false);
-  assert.ok(/Manage Roles/.test(result.reason));
-  assert.equal(created.length, 0);
-});
-
-test('!spawnermanager is admin only and saves the role id', async () => {
-  const { guild } = spawnerRoleRig();
-  const reached = [];
-  const message = (admin) => ({
-    content: '!spawnermanager',
-    guild,
-    client: {},
-    member: { permissions: { has: () => admin } },
-    reply: async (payload) => reached.push(payload),
+  const second = spawnerAccessRig({
+    role,
+    existingPermissions: [{ id: 'r-perms', type: ApplicationCommandPermissionType.Role, permission: true }],
   });
-  const settings = {};
-  let saves = 0;
-  const store = { guild: () => settings, save: () => (saves += 1) };
+  await spawneraccess.syncPriceAccess({ guilds: { cache: new Map([[role.id, second.guild]]) } }, store);
+  assert.equal(second.granted.length, 0, 'no repeat write when it is already there');
+});
 
-  await spawnerrole.handleMessage(message(false), { store });
-  assert.equal(reached.length, 1);
-  assert.ok(/Manage Server/.test(reached[0].embeds[0].data.description), 'members are refused');
-  assert.equal(saves, 0);
-
-  await spawnerrole.handleMessage(message(true), { store });
-  assert.equal(settings.spawnerManagerRoleId, 'r-new');
-  assert.equal(saves, 1, 'the setting is saved');
+test('no spawner perms role means no command override at all', async () => {
+  const { guild, granted } = spawnerAccessRig({ role: null });
+  await spawneraccess.syncPriceAccess(
+    { guilds: { cache: new Map([['g-1', guild]]) } },
+    { guild: () => ({}) },
+  );
+  assert.equal(granted.length, 0);
 });
 
 test('spawner emojis use the server custom emoji with a fallback', () => {

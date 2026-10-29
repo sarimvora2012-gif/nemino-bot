@@ -105,38 +105,14 @@ function spawnerPermsRole(guild, settings) {
 }
 
 /**
- * The role that can change prices without Manage Server: the configured
- * `spawner_manager_role`, then any role named "Spawner Manager" in any font.
- */
-function spawnerManagerRole(guild, settings) {
-  const id = settings?.spawnerManagerRoleId;
-  if (id) {
-    const configured = guild?.roles?.cache?.get?.(id);
-    if (configured) return configured;
-  }
-  return (
-    guild?.roles?.cache?.find?.((role) => isSpawnerManagerName(role?.name)) ?? null
-  );
-}
-
-/** `Spawner Manager`, `ꜱᴘᴀᴡɴᴇʀ ᴍᴀɴᴀɢᴇʀ` and `✦ Spawner  Manager` all match. */
-function isSpawnerManagerName(name) {
-  const plain = toPlain(String(name ?? ''))
-    .toLowerCase()
-    .replace(/[^a-z]+/g, ' ')
-    .trim();
-  return plain === 'spawner manager';
-}
-
-/**
- * True for the people who may set prices: Manage Server, or the Spawner
- * Manager role. Deliberately not "administrator": running the shop is not a
- * reason to hand out the rest of the admin commands.
+ * True for the people who may set prices: the spawner perms role, or Manage
+ * Server so the owner can never lock themselves out. Nobody else — holding a
+ * staff rank is not enough to move prices.
  */
 function canManagePrices(member, settings) {
   if (!member) return false;
   if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
-  const role = spawnerManagerRole(member.guild, settings);
+  const role = spawnerPermsRole(member.guild, settings);
   return Boolean(role && member.roles?.cache?.has?.(role.id));
 }
 
@@ -626,7 +602,7 @@ async function handleMessage(message, { store }) {
       .reply({
         embeds: [
           errorEmbed(
-            'Only staff, **Manage Server** or the **Spawner Manager** role can post the board.',
+            'Only staff, **Manage Server** or the **spawner perms** role can post the board.',
             'Missing permissions',
           ),
         ],
@@ -675,12 +651,10 @@ module.exports = {
   parseAmount,
   pricedOptions,
   panelPayload,
-  isSpawnerManagerName,
   priceLine,
   refreshPanel,
   spawnerByKey,
   spawnerEmoji,
-  spawnerManagerRole,
   spawnerPermsRole,
   storedPanel,
   titleEmoji,
