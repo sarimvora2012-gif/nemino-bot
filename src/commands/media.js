@@ -1,13 +1,12 @@
 'use strict';
 
 /**
- * Video and stream announcements.
+ * Video announcements.
  *
  *  /upload video link:<url>  -> uploads channel, pings the Nemino role
- *  /golive title:<text>      -> streams channel, pings @everyone
  *
- * Both are posted by hand: the bot does not watch an external platform for a
- * stream starting, so nothing is announced unless someone runs the command.
+ * The bot never posts about streams: there is no live watcher and no live
+ * command, so nothing can ping the server for a stream.
  */
 
 const {
@@ -22,7 +21,6 @@ const { toSmallCaps } = require('../lib/smallcaps');
 const v2 = require('../lib/v2');
 
 const UPLOAD_CHANNEL_ID = '1527963264477302845';
-const STREAM_CHANNEL_ID = '1527962279704789072';
 const YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@RealNemino';
 const OWNER_NAME = 'realnemino';
 const DEFAULT_PING_ROLE_ID = '1528275182068826132';
@@ -46,23 +44,6 @@ const data = [
             .setRequired(true)
             .setMaxLength(500),
         ),
-    ),
-  new SlashCommandBuilder()
-    .setName('golive')
-    .setDescription('Announce that you are live in the streams channel')
-    .addStringOption((opt) =>
-      opt
-        .setName('title')
-        .setDescription('What are you streaming?')
-        .setRequired(true)
-        .setMaxLength(MAX_TITLE),
-    )
-    .addStringOption((opt) =>
-      opt
-        .setName('link')
-        .setDescription('Stream link (optional)')
-        .setRequired(false)
-        .setMaxLength(500),
     ),
 ];
 
@@ -171,37 +152,30 @@ function canAnnounce(member, guild, role) {
 }
 
 /**
- * One layout for both videos and streams, shaped like Discord's own video
- * preview: the uploader line, the real title, the badge and time, a one-line
- * summary, the cover image, then the play button.
+ * The upload card, shaped like Discord's own video preview: the uploader line,
+ * the real title, the badge and time, a one-line summary, the cover image,
+ * then the play button.
  */
-function videoCard({ kind, title = null, url = null, thumbnail = null, ping = null }) {
-  const live = kind === 'live';
+function videoCard({ title = null, url = null, thumbnail = null, ping = null }) {
   const host = url ? hostOf(url) : 'youtube.com';
   const now = Math.floor(Date.now() / 1000);
 
   return v2.card({
-    accent: live ? 0xff1a1a : 0xff2d55,
+    accent: 0xff2d55,
     kicker: `🍥 ${OWNER_NAME}`,
-    title:
-      title || (live ? `${OWNER_NAME} is live` : `New video from ${OWNER_NAME}`),
-    subtitle: `${live ? '🔴 youtube live' : '🎬 new upload'} · <t:${now}:f>`,
+    title: title || `New video from ${OWNER_NAME}`,
+    subtitle: `🎬 new upload · <t:${now}:f>`,
     quote: ping,
     description: [
-      live
-        ? `Nemino is now live on YouTube!`
-        : `Nemino just uploaded a new video!`,
+      `Nemino just uploaded a new video!`,
       url ? `🔗 [${host}](${url})` : null,
     ]
       .filter(Boolean)
       .join('\n'),
     image: thumbnail,
-    footer: live ? 'streams' : 'uploads',
+    footer: 'uploads',
     buttons: [
-      linkRow(
-        url ? linkButton(live ? 'Watch stream' : 'Watch video', url, live ? '🔴' : '▶️') : null,
-        channelButton(),
-      ),
+      linkRow(url ? linkButton('Watch video', url, '▶️') : null, channelButton()),
     ],
   });
 }
@@ -209,7 +183,6 @@ function videoCard({ kind, title = null, url = null, thumbnail = null, ping = nu
 function uploadCard({ guild, url, meta = null }) {
   const role = announceRole(guild);
   const payload = videoCard({
-    kind: 'upload',
     title: meta?.title ?? null,
     url,
     thumbnail: meta?.thumbnail ?? videoThumbnail(url),
@@ -217,19 +190,6 @@ function uploadCard({ guild, url, meta = null }) {
   });
 
   if (role) payload.allowedMentions = { parse: [], roles: [role.id] };
-  return payload;
-}
-
-function liveCard({ guild, title, url, thumbnail = null }) {
-  const payload = videoCard({
-    kind: 'live',
-    title,
-    url,
-    thumbnail: thumbnail ?? videoThumbnail(url),
-    ping: '@everyone',
-  });
-
-  payload.allowedMentions = { parse: ['everyone'] };
   return payload;
 }
 
@@ -289,60 +249,26 @@ async function announce(interaction, { channelId, payload, build, label }) {
   return message;
 }
 
-async function execute(interaction, { store } = {}) {
+async function execute(interaction) {
   const guild = interaction.guild;
 
-  if (interaction.commandName === 'upload') {
-    const link = cleanUrl(interaction.options.getString('link'));
-    if (!link) {
-      await interaction.reply({
-        embeds: [errorEmbed('That is not a valid link. It needs to start with `https://`.', 'Invalid link')],
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-    await announce(interaction, {
-      channelId: UPLOAD_CHANNEL_ID,
-      label: 'uploads',
-      build: async () => uploadCard({ guild, url: link, meta: await videoMeta(link) }),
+  const link = cleanUrl(interaction.options.getString('link'));
+  if (!link) {
+    await interaction.reply({
+      embeds: [errorEmbed('That is not a valid link. It needs to start with `https://`.', 'Invalid link')],
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
-
-  if (interaction.commandName === 'golive') {
-    const title = interaction.options.getString('title').trim();
-    const rawLink = interaction.options.getString('link');
-    const link = rawLink ? cleanUrl(rawLink) : null;
-
-    if (!title) {
-      await interaction.reply({
-        embeds: [errorEmbed('Give your stream a title.', 'Missing title')],
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-    if (rawLink && !link) {
-      await interaction.reply({
-        embeds: [errorEmbed('That stream link is not valid. It needs to start with `https://`.', 'Invalid link')],
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    await announce(interaction, {
-      channelId: STREAM_CHANNEL_ID,
-      label: 'stream announcements',
-      build: async () => {
-        const meta = link ? await videoMeta(link) : null;
-        return liveCard({ guild, title, url: link, thumbnail: meta?.thumbnail ?? null });
-      },
-    });
-  }
+  await announce(interaction, {
+    channelId: UPLOAD_CHANNEL_ID,
+    label: 'uploads',
+    build: async () => uploadCard({ guild, url: link, meta: await videoMeta(link) }),
+  });
 }
 
 module.exports = {
   DEFAULT_PING_ROLE_ID,
-  STREAM_CHANNEL_ID,
   UPLOAD_CHANNEL_ID,
   YOUTUBE_CHANNEL_URL,
   announceRole,
@@ -350,7 +276,6 @@ module.exports = {
   cleanUrl,
   data,
   execute,
-  liveCard,
   uploadCard,
   videoMeta,
   videoThumbnail,

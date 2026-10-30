@@ -16,7 +16,7 @@ A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **a
 | 🌴 LOA requests | `!loasetup` panel, request modal, staff accept/deny, notification DMs and automatic LOA role assignment |
 | 💡 Suggestions | `/suggestion` posts to the suggestion channel; staff vote with ✅ Approve / ❌ Reject buttons |
 | 🦴 Spawner prices | `/setspawnerprice` sets buying and selling prices per spawner kind; one wide board in the spawner prices channel updates itself, with Buy/Sell ticket buttons |
-| 🎥 Videos & streams | `/upload video link:<url>` announces a new video and pings the Nemo role; `/golive` pings the server with the stream title when you run it |
+| 🎥 Videos | `/upload video link:<url>` announces a new video and pings the Nemo role; streams are never announced |
 | 🎟️ Vouches | `:vouch @user` in a vouch channel, `Name (count)` nicknames (behind the staff rank, e.g. `ᴍᴏᴅ Name (count)`), a how-to panel that is reposted so it stays newest, `/vouch leaderboard` and owner-only `!vouchadd` |
 | ⏳ Timeouts | `!to @user 10m [reason]` with hierarchy checks, a DM to the member and an entry in the moderation log |
 | 🧹 Purge | `!purge 25` bulk-deletes messages — 50 per command for staff, up to 1000 for the owner and co-owner |
@@ -293,19 +293,18 @@ Each row uses the server's custom emoji for that spawner when one exists (names 
 
 Clicking a button opens a private ticket in the spawner category with the current prices listed for that side, `/ticket close` support and transcripts. The ticket pings the **spawner perms** role once so the people who run spawner deals see it straight away: `/config set spawner_perms_role:@role` picks it explicitly, and if that is unset the bot uses whichever role reads as “spawner perms” in any font. That role is also given access to the ticket channel, otherwise it could be pinged into a room it cannot open. If the server has no such role, the ticket still opens — just without a ping.
 
-### Videos and streams
+### Videos
 | Command | Who | Description |
 | --- | --- | --- |
 | `/upload video link:<url>` | Owner, Nemo role, Manage Server | Announces a new video in <#1527963264477302845> and pings the Nemo role |
-| `/golive title:<text> [link]` | Owner, Nemo role, Manage Server | Pings the server in <#1527962279704789072> that Nemino is live |
 
-The video card names `realnemino`, links the video and, for YouTube links, shows the video cover so the card stays wide. The stream card pings `@everyone` and shows the stream title and how long ago the stream started, with a **Watch stream** button when a link is given. Both cards link the YouTube channel and are Components V2 cards with the usual signature.
+The video card names `realnemino`, links the video and, for YouTube links, shows the video cover so the card stays wide. It links the YouTube channel and is a Components V2 card with the usual signature.
 
-The role pinged for uploads is the role named `Nemino` (or `Nemo`), or the id in `UPLOAD_PING_ROLE_ID` when that is set in `.env`.
+The role pinged is the role named `Nemino` (or `Nemo`), or the id in `UPLOAD_PING_ROLE_ID` when that is set in `.env`.
 
-#### No automatic live pings
+#### No stream announcements
 
-The bot does **not** watch YouTube. Nothing is posted when Nemino goes live unless someone runs `/golive title:<text>`, so the server is never pinged about a stream on its own. The old background watcher has been removed along with its saved state; any `stream` block left in `data/data.json` is ignored.
+The bot does **not** watch YouTube and has no live command, so nothing is ever posted or pinged when Nemino goes live. The background watcher, the `/golive` command, the live card and their saved state have all been removed; any `stream` block left in `data/data.json` is ignored.
 
 ### Vouches
 | Command | Who | Description |

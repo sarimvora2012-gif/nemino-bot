@@ -131,12 +131,11 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '🎥 Videos & streams',
+        name: '🎥 Videos',
         value: [
           '`/upload video link:<url>` — announces a new video in <#1527963264477302845> and pings the Nemo role',
-          '`/golive title:<text> [link]` — pings the server in <#1527962279704789072> with your stream title',
-          'Streams are only announced when someone runs `/golive` — nothing is posted automatically',
-          'Owner, the Nemo role and **Manage Server** can post these',
+          'Owner, the Nemo role and **Manage Server** can post it',
+          'Streams are not announced by the bot — there is no live ping',
         ].join('\n'),
       },
       {

@@ -3023,23 +3023,19 @@ test('uploads ping the Nemino role, even after !stafffont', () => {
   assert.equal(buttons[1].url, media.YOUTUBE_CHANNEL_URL, 'always links the channel');
 });
 
-test('going live pings the server with the stream title', () => {
-  const payload = media.liveCard({
-    guild: mediaGuild,
-    title: 'Building the 10B base',
-    url: 'https://twitch.tv/realnemino',
-  });
-  assert.deepEqual(payload.allowedMentions, { parse: ['everyone'] });
-  const text = textOf(payload);
-  assert.ok(text.includes('@everyone'), 'pings the server');
-  assert.ok(text.includes('Building the 10B base'), 'shows the stream title');
-  assert.ok(text.includes('twitch.tv/realnemino'), 'links the stream');
-  assert.equal(collectButtons(payload)[0].url, 'https://twitch.tv/realnemino');
-  assert.equal(collectButtons(payload)[1].url, media.YOUTUBE_CHANNEL_URL, 'links the channel');
-
-  const noLink = media.liveCard({ guild: mediaGuild, title: 'Chilling', url: null });
-  assert.equal(collectButtons(noLink).length, 1, 'only the channel link without a stream url');
-  assert.ok(textOf(noLink).includes('@everyone'));
+test('nothing announces streams: no /golive, no live card, no @everyone ping', () => {
+  assert.deepEqual(
+    media.data.map((builder) => builder.name),
+    ['upload'],
+    'the media module only ships /upload',
+  );
+  assert.equal(media.liveCard, undefined, 'the live card is gone');
+  assert.equal(media.STREAM_CHANNEL_ID, undefined, 'the streams channel is no longer referenced');
+  assert.equal(
+    fs.existsSync(path.join(__dirname, '..', 'src', 'lib', 'streams.js')),
+    false,
+    'the live watcher is gone too',
+  );
 });
 
 test('nothing watches YouTube for a stream any more', () => {
