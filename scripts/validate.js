@@ -3042,64 +3042,21 @@ test('going live pings the server with the stream title', () => {
   assert.ok(textOf(noLink).includes('@everyone'));
 });
 
-console.log('\nLive tracking');
-const streams = require('../src/lib/streams');
-
-test('a redirect to the watch page means the channel is live', () => {
-  assert.deepEqual(
-    streams.parseLiveResponse({
-      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      status: 200,
-    }),
-    { live: true, videoId: 'dQw4w9WgXcQ' },
-  );
-  assert.deepEqual(
-    streams.parseLiveResponse({ url: 'https://www.youtube.com/@RealNemino/live', status: 200, html: 'x' }),
-    { live: false, videoId: null },
-    'an offline channel page is not live',
-  );
-  assert.equal(streams.parseLiveResponse({ status: 429 }).live, false, 'rate limits are not live');
-  assert.equal(streams.parseLiveResponse({}).live, false);
-});
-
-test('a live marker in the page is read with its video id', () => {
-  const live = '"isLive":true,"videoId":"abcDEF12345"';
-  assert.deepEqual(streams.parseLiveResponse({ status: 200, html: live }), {
-    live: true,
-    videoId: 'abcDEF12345',
-  });
+test('nothing watches YouTube for a stream any more', () => {
   assert.equal(
-    streams.parseLiveResponse({ status: 200, html: '"videoId":"abcDEF12345","hlsManifestUrl":"https://x"' })
-      .live,
-    true,
-    'a live player manifest is enough',
+    fs.existsSync(path.join(__dirname, '..', 'src', 'lib', 'streams.js')),
+    false,
+    'the live watcher is gone',
   );
-  assert.equal(streams.parseLiveResponse({ status: 200, html: '"isLive":false' }).live, false);
-  assert.equal(streams.videoIdFrom('no id here'), null);
-
-  // The marker sits deep in a real channel page, well past the first chunk.
-  const deep = `${'x'.repeat(500_000)}"videoId":"abcDEF12345","liveBroadcastDetails":{"isLiveNow":true}`;
-  assert.deepEqual(streams.parseLiveResponse({ status: 200, html: deep }), {
-    live: true,
-    videoId: 'abcDEF12345',
-  });
-});
-
-test('a manual announcement marks the live video as already announced', () => {
-  const settings = { stream: {} };
-  assert.equal(streams.markAnnounced(settings, 'abcDEF12345'), true);
-  assert.equal(settings.stream.announcedVideoId, 'abcDEF12345');
-  assert.ok(settings.stream.announcedAt, 'remembers when it was announced');
-  assert.equal(streams.markAnnounced(settings, null), false);
-});
-
-test('the watched channel is the RealNemino YouTube channel', () => {
   assert.equal(media.YOUTUBE_CHANNEL_URL, 'https://www.youtube.com/@RealNemino');
-  assert.equal(streams.liveUrl(), 'https://www.youtube.com/@RealNemino/live');
-  assert.equal(streams.liveUrl('RealNemino'), 'https://www.youtube.com/@RealNemino/live');
-  assert.equal(streams.watchUrl('dQw4w9WgXcQ'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-  assert.equal(streams.handleOf(''), '@RealNemino');
-  assert.equal(streams.POLL_MS, 3 * 60 * 1000);
+
+  const file = path.join(os.tmpdir(), `seraphum-check-${process.pid}.json`);
+  try {
+    const fresh = new Store(file).guild('g-stream-check');
+    assert.equal('stream' in fresh, false, 'no leftover live-tracking state is saved');
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
 });
 
 test('only the owner, Manage Server or the announced role may post', () => {

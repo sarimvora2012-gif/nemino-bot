@@ -6,8 +6,8 @@
  *  /upload video link:<url>  -> uploads channel, pings the Nemino role
  *  /golive title:<text>      -> streams channel, pings @everyone
  *
- * Going live is announced by running the command; the bot cannot watch an
- * external platform for a stream starting without Twitch/YouTube credentials.
+ * Both are posted by hand: the bot does not watch an external platform for a
+ * stream starting, so nothing is announced unless someone runs the command.
  */
 
 const {
@@ -24,7 +24,6 @@ const v2 = require('../lib/v2');
 const UPLOAD_CHANNEL_ID = '1527963264477302845';
 const STREAM_CHANNEL_ID = '1527962279704789072';
 const YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@RealNemino';
-const YOUTUBE_HANDLE = process.env.YOUTUBE_HANDLE?.trim() || '@RealNemino';
 const OWNER_NAME = 'realnemino';
 const DEFAULT_PING_ROLE_ID = '1528275182068826132';
 const PING_ROLE_NAMES = ['nemino', 'nemo'];
@@ -330,7 +329,7 @@ async function execute(interaction, { store } = {}) {
       return;
     }
 
-    const message = await announce(interaction, {
+    await announce(interaction, {
       channelId: STREAM_CHANNEL_ID,
       label: 'stream announcements',
       build: async () => {
@@ -338,17 +337,6 @@ async function execute(interaction, { store } = {}) {
         return liveCard({ guild, title, url: link, thumbnail: meta?.thumbnail ?? null });
       },
     });
-
-    // A manual announcement for a stream the tracker is about to notice should
-    // not be posted twice, so remember which YouTube stream is already out.
-    if (message && store) {
-      const streams = require('../lib/streams');
-      const state = await streams.detectLive().catch(() => null);
-      if (state?.live && state.videoId) {
-        streams.markAnnounced(store.guild(guild.id), state.videoId);
-        store.save();
-      }
-    }
   }
 }
 
@@ -357,7 +345,6 @@ module.exports = {
   STREAM_CHANNEL_ID,
   UPLOAD_CHANNEL_ID,
   YOUTUBE_CHANNEL_URL,
-  YOUTUBE_HANDLE,
   announceRole,
   canAnnounce,
   cleanUrl,

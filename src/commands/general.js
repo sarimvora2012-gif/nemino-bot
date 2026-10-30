@@ -135,7 +135,7 @@ async function execute(interaction, { client }) {
         value: [
           '`/upload video link:<url>` — announces a new video in <#1527963264477302845> and pings the Nemo role',
           '`/golive title:<text> [link]` — pings the server in <#1527962279704789072> with your stream title',
-          'The bot also watches youtube.com/@RealNemino and announces automatically when it goes live',
+          'Streams are only announced when someone runs `/golive` — nothing is posted automatically',
           'Owner, the Nemo role and **Manage Server** can post these',
         ].join('\n'),
       },

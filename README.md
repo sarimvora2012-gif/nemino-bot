@@ -16,7 +16,7 @@ A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **a
 | 🌴 LOA requests | `!loasetup` panel, request modal, staff accept/deny, notification DMs and automatic LOA role assignment |
 | 💡 Suggestions | `/suggestion` posts to the suggestion channel; staff vote with ✅ Approve / ❌ Reject buttons |
 | 🦴 Spawner prices | `/setspawnerprice` sets buying and selling prices per spawner kind; one wide board in the spawner prices channel updates itself, with Buy/Sell ticket buttons |
-| 🎥 Videos & streams | `/upload video link:<url>` announces a new video and pings the Nemo role; `/golive` pings the server with the stream title; the bot also watches youtube.com/@RealNemino and announces when it goes live |
+| 🎥 Videos & streams | `/upload video link:<url>` announces a new video and pings the Nemo role; `/golive` pings the server with the stream title when you run it |
 | 🎟️ Vouches | `:vouch @user` in a vouch channel, `Name (count)` nicknames (behind the staff rank, e.g. `ᴍᴏᴅ Name (count)`), a how-to panel that is reposted so it stays newest, `/vouch leaderboard` and owner-only `!vouchadd` |
 | ⏳ Timeouts | `!to @user 10m [reason]` with hierarchy checks, a DM to the member and an entry in the moderation log |
 | 🧹 Purge | `!purge 25` bulk-deletes messages — 50 per command for staff, up to 1000 for the owner and co-owner |
@@ -303,11 +303,9 @@ The video card names `realnemino`, links the video and, for YouTube links, shows
 
 The role pinged for uploads is the role named `Nemino` (or `Nemo`), or the id in `UPLOAD_PING_ROLE_ID` when that is set in `.env`.
 
-#### Automatic live announcements
+#### No automatic live pings
 
-The bot watches <https://www.youtube.com/@RealNemino> on its own: every 3 minutes it checks the channel's `/live` page, and the moment the channel is streaming it posts the 🔴 live card in <#1527962279704789072> and pings `@everyone` with the real stream title pulled from YouTube. Each live video is announced once — it will not repeat while the stream is running, and a new stream is announced separately.
-
-Set `YOUTUBE_HANDLE` in `.env` to watch a different channel. Nothing is posted while the channel is offline; the bot logs the state changes (`[streams] @RealNemino is LIVE` / `offline`) so it is easy to see it working. `/golive` still exists as a manual announcement for platforms other than YouTube or when you want a custom title.
+The bot does **not** watch YouTube. Nothing is posted when Nemino goes live unless someone runs `/golive title:<text>`, so the server is never pinged about a stream on its own. The old background watcher has been removed along with its saved state; any `stream` block left in `data/data.json` is ignored.
 
 ### Vouches
 | Command | Who | Description |

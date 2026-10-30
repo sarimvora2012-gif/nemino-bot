@@ -45,7 +45,6 @@ const spawnerBoard = require('./lib/spawners');
 const spawnerAccess = require('./lib/spawneraccess');
 const staffguide = require('./lib/staffguide');
 const steal = require('./lib/steal');
-const streams = require('./lib/streams');
 const strike = require('./lib/strike');
 const timeout = require('./lib/timeout');
 const vouch = require('./lib/vouch');
@@ -137,7 +136,6 @@ client.once(Events.ClientReady, (readyClient) => {
     .verify(context)
     .catch((err) => console.error('[honeypot] Startup check failed:', err));
   membercount.start(context);
-  streams.start(context);
   modules.ticket
     ?.sweepClosedTickets(context)
     .catch((err) => console.error('[ticket] Cleanup failed:', err));
@@ -329,7 +327,6 @@ async function shutdown(signal) {
   modules.giveaway?.stopScheduler();
   membercount.stop();
   presence.stop();
-  streams.stop();
   scoreboard.flushVoiceSessions(store);
   await client.destroy().catch(() => {});
   process.exit(0);
