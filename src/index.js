@@ -43,6 +43,7 @@ const staffname = require('./lib/staffname');
 const scoreboard = require('./lib/scoreboard');
 const spawnerBoard = require('./lib/spawners');
 const spawnerAccess = require('./lib/spawneraccess');
+const suggestionAccess = require('./lib/suggestionaccess');
 const staffguide = require('./lib/staffguide');
 const steal = require('./lib/steal');
 const strike = require('./lib/strike');
@@ -120,11 +121,14 @@ client.once(Events.ClientReady, (readyClient) => {
     guildId: process.env.GUILD_ID?.trim(),
     commands: commandJson,
   })
-    .then((result) => {
+    .then(async (result) => {
       logSync(result, process.env.GUILD_ID?.trim());
       // After the commands exist: the spawner perms role is allowed on the
       // price command, which re-registering commands can otherwise drop.
-      return spawnerAccess.syncPriceAccess(readyClient, store);
+      await spawnerAccess.syncPriceAccess(readyClient, store);
+      // And members keep the suggestion command even if it was restricted in
+      // Discord's Integrations screen.
+      return suggestionAccess.syncSuggestionAccess(readyClient);
     })
     .catch((err) => console.error('[commands] Sync failed:', err.message));
   activity.startScheduler(context);

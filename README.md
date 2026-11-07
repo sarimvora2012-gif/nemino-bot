@@ -276,6 +276,8 @@ Members click **Request LOA**, then enter how long they need and why. The reques
 
 Each suggestion shows the text, the member who submitted it, and live vote counts. Staff click **✅ Approve** or **❌ Reject** to vote. Staff can switch sides or click the same button again to remove their vote. Members cannot vote, but anyone can submit a suggestion.
 
+The command has no staff gate, so every member can use it. Discord can still hide a command per-role under **Server Settings → Integrations**, which makes it look like members lack permission — the bot therefore allows **@everyone** on `/suggestion` at every start (skipping the write when it is already allowed), so a restriction set by hand or left behind by a re-registration is cleared on the next restart.
+
 ### Spawner prices
 | Command | Who | Description |
 | --- | --- | --- |

@@ -112,7 +112,7 @@ async function execute(interaction, { client }) {
       {
         name: '💡 Suggestions',
         value: [
-          '`/suggestion suggestion:<text>` — post a suggestion',
+          '`/suggestion suggestion:<text>` — post a suggestion (every member can use this)',
           'Suggestions are sent to the suggestion channel',
           'Staff vote with ✅ Approve and ❌ Reject buttons',
           'Staff can change or remove their vote',

@@ -2653,6 +2653,7 @@ test('the member line is a custom status so it is not prefixed with a verb', () 
 console.log('\nSpawner prices & media');
 const spawners = require('../src/lib/spawners');
 const spawneraccess = require('../src/lib/spawneraccess');
+const suggestionaccess = require('../src/lib/suggestionaccess');
 const { ApplicationCommandPermissionType } = require('discord.js');
 const media = require('../src/commands/media');
 
@@ -3034,6 +3035,63 @@ test('no spawner perms role means no command override at all', async () => {
     { guild: () => ({}) },
   );
   assert.equal(granted.length, 0);
+});
+
+function suggestionAccessRig({ existingPermissions = [], commands = [{ id: 'cmd-sug', name: 'suggestion' }], everyone = { id: 'g-1' } } = {}) {
+  const granted = [];
+  const guild = {
+    id: 'g-1',
+    roles: { everyone },
+    commands: {
+      fetch: async () => commands,
+      permissions: {
+        add: async (payload) => granted.push(payload),
+        fetch: async () => existingPermissions,
+      },
+    },
+  };
+  return { guild, granted };
+}
+
+test('members are allowed to use /suggestion', async () => {
+  const { guild, granted } = suggestionAccessRig();
+  const result = await suggestionaccess.allowEveryone({}, guild);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(granted[0], {
+    command: 'cmd-sug',
+    permissions: [{ id: 'g-1', type: ApplicationCommandPermissionType.Role, permission: true }],
+  });
+
+  const missing = suggestionAccessRig({ everyone: null });
+  assert.equal((await suggestionaccess.allowEveryone({}, missing.guild)).ok, false, 'no @everyone role');
+  assert.equal(missing.granted.length, 0);
+});
+
+test('the suggestion command is opened to members once and not rewritten', async () => {
+  const client = (guild) => ({ guilds: { cache: new Map([['g-1', guild]]) } });
+
+  const first = suggestionAccessRig();
+  await suggestionaccess.syncSuggestionAccess(client(first.guild));
+  assert.equal(first.granted.length, 1, 'opened on the first start');
+
+  const second = suggestionAccessRig({
+    existingPermissions: [
+      { id: 'g-1', type: ApplicationCommandPermissionType.Role, permission: true },
+    ],
+  });
+  await suggestionaccess.syncSuggestionAccess(client(second.guild));
+  assert.equal(second.granted.length, 0, 'no repeat write once members are allowed');
+});
+
+test('no suggestion command means no permission calls at all', async () => {
+  const { guild, granted } = suggestionAccessRig({ commands: [] });
+  await suggestionaccess.syncSuggestionAccess({ guilds: { cache: new Map([['g-1', guild]]) } });
+  assert.equal(granted.length, 0);
+
+  const empty = suggestionAccessRig();
+  await suggestionaccess.syncSuggestionAccess({ guilds: { cache: new Map() } });
+  assert.equal(empty.granted.length, 0, 'a bot in no servers does nothing');
 });
 
 test('spawner emojis use the server custom emoji with a fallback', () => {
