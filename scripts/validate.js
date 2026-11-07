@@ -2822,6 +2822,161 @@ test('only the spawner perms role or Manage Server can change prices', () => {
   );
 });
 
+function priceChangeRig() {
+  const sent = [];
+  const channel = (id) => ({
+    id,
+    isTextBased: () => true,
+    send: async (payload) => {
+      sent.push({ channelId: id, payload });
+      return { id: `msg-${id}` };
+    },
+  });
+  const channels = new Map(
+    ['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6'].map((id) => [id, channel(id)]),
+  );
+  const guild = {
+    id: 'g-1',
+    name: 'Server',
+    emojis: { cache: { find: () => null } },
+    channels: {
+      cache: { get: (id) => channels.get(id) ?? null },
+      fetch: async (id) => channels.get(id) ?? null,
+    },
+  };
+  const patches = [];
+  const ticket = (userId, type, order) => ({
+    guildId: 'g-1',
+    userId,
+    type,
+    status: 'open',
+    order,
+  });
+  const store = {
+    data: {
+      tickets: {
+        'c-1': ticket('buyer-1', 'spawner-buy', {
+          key: 'creeper',
+          mode: 'buy',
+          quantity: 8,
+          unitPrice: '16M',
+          total: '128M',
+        }),
+        'c-2': ticket('buyer-2', 'spawner-buy', {
+          key: 'creeper',
+          mode: 'buy',
+          quantity: 2,
+          unitPrice: '16M',
+          total: '32M',
+        }),
+        'c-3': ticket('seller-1', 'spawner-sell', {
+          key: 'creeper',
+          mode: 'sell',
+          quantity: 4,
+          unitPrice: '12M',
+          total: '48M',
+        }),
+        'c-4': {
+          ...ticket('buyer-3', 'spawner-buy', {
+            key: 'creeper',
+            mode: 'buy',
+            quantity: 8,
+            unitPrice: '16M',
+            total: '128M',
+          }),
+          status: 'closed',
+        },
+        'c-5': ticket('buyer-4', 'spawner-buy', {
+          key: 'pig',
+          mode: 'buy',
+          quantity: 8,
+          unitPrice: '9M',
+          total: '72M',
+        }),
+        'c-6': { guildId: 'g-1', userId: 'member-1', type: 'ticket', status: 'open', order: null },
+      },
+    },
+    updateTicket: (id, patch) => patches.push({ id, patch }),
+  };
+  return { guild, store, sent, patches };
+}
+
+test('a price change only reaches tickets for that spawner and that side', async () => {
+  const { guild, store, sent, patches } = priceChangeRig();
+  const settings = { spawners: { buy: { creeper: 18, pig: 9 }, sell: { creeper: 12 } } };
+
+  const notified = await spawners.notifyPriceChange({
+    guild,
+    settings,
+    store,
+    key: 'creeper',
+    mode: 'buy',
+  });
+
+  assert.deepEqual(
+    notified.map((entry) => entry.channelId),
+    ['c-1', 'c-2'],
+    'only the two open creeper buying tickets are told',
+  );
+  assert.deepEqual(
+    sent.map((entry) => entry.channelId),
+    ['c-1', 'c-2'],
+    'the selling ticket, the closed one, the pig ticket and the plain one hear nothing',
+  );
+
+  const [first, second] = sent;
+  assert.equal(first.payload.content, '<@buyer-1>', 'pings the buyer');
+  assert.equal(second.payload.content, '<@buyer-2>');
+  assert.deepEqual(
+    first.payload.allowedMentions,
+    { parse: [], users: ['buyer-1'], roles: [] },
+    'pings only the buyer, no roles or everyone',
+  );
+
+  const card = first.payload.embeds[0].data;
+  assert.equal(card.title, '💸 spawner price update');
+  assert.ok(card.description.includes('**New price:** 18M each'), 'shows the new unit price');
+  assert.ok(card.description.includes('**Your amount:** 8'), 'reminds them of their amount');
+  assert.ok(card.description.includes('**New total price:** 144M'), 'recomputes the total');
+  assert.ok(card.description.includes('-# previous total 128M'), 'and shows what it was');
+
+  assert.deepEqual(
+    patches.map((entry) => [entry.id, entry.patch.order.total, entry.patch.order.unitPrice]),
+    [
+      ['c-1', '144M', '18M'],
+      ['c-2', '36M', '18M'],
+    ],
+    'the stored order keeps the new price so the next change diffs against it',
+  );
+  assert.equal(patches[0].patch.order.quantity, 8, 'the amount is left alone');
+});
+
+test('open orders only match their own spawner, side and status', async () => {
+  const { store } = priceChangeRig();
+
+  assert.deepEqual(
+    spawners.ordersFor(store, 'g-1', 'creeper', 'buy').map(([id]) => id),
+    ['c-1', 'c-2'],
+  );
+  assert.deepEqual(spawners.ordersFor(store, 'g-1', 'creeper', 'sell').map(([id]) => id), ['c-3']);
+  assert.deepEqual(spawners.ordersFor(store, 'g-1', 'cow', 'buy'), [], 'no orders, no notices');
+  assert.deepEqual(spawners.ordersFor(store, 'other-guild', 'creeper', 'buy'), []);
+  assert.deepEqual(spawners.ordersFor({ data: {} }, 'g-1', 'creeper', 'buy'), []);
+});
+
+test('a spawner without a price has nobody to tell', async () => {
+  const { guild, store, sent } = priceChangeRig();
+  const notified = await spawners.notifyPriceChange({
+    guild,
+    settings: { spawners: { buy: {}, sell: {} } },
+    store,
+    key: 'creeper',
+    mode: 'buy',
+  });
+  assert.deepEqual(notified, []);
+  assert.deepEqual(sent, []);
+});
+
 function spawnerAccessRig({ existingPermissions = [], role = null } = {}) {
   const granted = [];
   const guild = {

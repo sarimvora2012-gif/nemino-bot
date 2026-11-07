@@ -178,6 +178,14 @@ class Store {
     return this.data.tickets[channelId] ?? null;
   }
 
+  updateTicket(channelId, patch) {
+    const ticket = this.data.tickets[channelId];
+    if (!ticket) return null;
+    Object.assign(ticket, patch);
+    this.save();
+    return ticket;
+  }
+
   removeTicket(channelId) {
     delete this.data.tickets[channelId];
     this.save();

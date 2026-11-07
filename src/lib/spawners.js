@@ -376,6 +376,93 @@ function ticketIntro({ user, mode, guild, settings, channelId, order = null }) {
   };
 }
 
+/**
+ * Open tickets in this guild whose order is for exactly this spawner and this
+ * side of the trade. An order is stored as `{ key, mode, quantity }`, so the
+ * total always comes from the quantity and the price in force right now.
+ */
+function ordersFor(store, guildId, key, mode) {
+  const tickets = store?.data?.tickets ?? {};
+  return Object.entries(tickets).filter(
+    ([, ticket]) =>
+      ticket?.guildId === guildId &&
+      ticket.status === 'open' &&
+      ticket.order?.key === key &&
+      ticket.order?.mode === mode &&
+      Number.isFinite(ticket.order?.quantity) &&
+      ticket.order.quantity >= 1,
+  );
+}
+
+/** What the ticket is told inside its own channel when its price moves. */
+function priceChangePayload(guild, ticket, { type, mode, unit, total, previousTotal }) {
+  const buying = mode === 'buy';
+  const lines = [
+    `The **${buying ? 'buying' : 'selling'}** price of ${spawnerEmoji(guild, type)} **${type.label}** just changed.`,
+    '',
+    `**New price:** ${unit} each`,
+    `**Your amount:** ${ticket.order.quantity}`,
+    `**New total price:** ${total}`,
+  ];
+  if (previousTotal && previousTotal !== total) lines.push(`-# previous total ${previousTotal}`);
+  lines.push('', 'Let us know here if you want to change your order.');
+
+  return {
+    embeds: [
+      embed({
+        title: '💸 spawner price update',
+        description: lines.join('\n'),
+        color: ACCENT,
+        footer: 'Spawner prices',
+      }),
+    ],
+    // Only the ticket owner is pinged; nothing else in the channel is.
+    allowedMentions: { parse: [], users: [ticket.userId], roles: [] },
+  };
+}
+
+/**
+ * Tells every open ticket that ordered this spawner on this side about the new
+ * price, pinging the buyer/seller and showing what their order now costs.
+ * Returns the tickets it reached. Tickets for other spawners are untouched.
+ */
+async function notifyPriceChange({ guild, settings, store, key, mode }) {
+  const type = spawnerByKey(key);
+  const price = type ? validatePrice(pricesFor(settings, mode)[key]) : { ok: false };
+  if (!type || !price.ok) return [];
+
+  const unit = formatMillions(price.value);
+  const notified = [];
+
+  for (const [channelId, ticket] of ordersFor(store, guild.id, key, mode)) {
+    const channel =
+      guild.channels.cache.get(channelId) ??
+      (await guild.channels.fetch(channelId).catch(() => null));
+    if (!channel?.isTextBased()) continue;
+
+    const total = formatMillions(price.value * ticket.order.quantity);
+    const previousTotal = ticket.order.total ?? null;
+
+    const sent = await channel
+      .send({
+        content: `<@${ticket.userId}>`,
+        ...priceChangePayload(guild, ticket, { type, mode, unit, total, previousTotal }),
+      })
+      .catch((err) => {
+        console.error(`[spawners] Could not warn ticket ${channelId}:`, err.message);
+        return null;
+      });
+    if (!sent) continue;
+
+    store.updateTicket(channelId, {
+      order: { ...ticket.order, unitPrice: unit, total },
+    });
+    notified.push({ channelId, userId: ticket.userId, total });
+  }
+
+  return notified;
+}
+
 /** Spawners with a price in this mode, as select options. */
 function pricedOptions(guild, settings, mode) {
   const options = [];
@@ -558,6 +645,17 @@ async function handleModal(interaction, { store }) {
     return;
   }
 
+  // Remember what was ordered, so a later price change can be quoted to them.
+  store.updateTicket(channel.id, {
+    order: {
+      key: type.key,
+      mode,
+      quantity: amount.value,
+      unitPrice: order.unitPrice,
+      total: order.total,
+    },
+  });
+
   const payload = ticketIntro({
     user: interaction.user,
     mode,
@@ -648,9 +746,12 @@ module.exports = {
   handleMessage,
   handleModal,
   handleSelect,
+  notifyPriceChange,
+  ordersFor,
   parseAmount,
   pricedOptions,
   panelPayload,
+  priceChangePayload,
   priceLine,
   refreshPanel,
   spawnerByKey,

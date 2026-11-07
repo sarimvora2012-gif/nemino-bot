@@ -75,6 +75,7 @@ async function execute(interaction, { store }) {
     return;
   }
 
+  const previous = spawners.formatPrice(settings.spawners?.[mode]?.[key]);
   const formatted = spawners.applyPrice(settings, key, mode, parsed.value);
   if (!formatted) {
     await interaction.reply({
@@ -104,6 +105,16 @@ async function execute(interaction, { store }) {
     }
   }
 
+  // Only tickets that ordered this exact spawner on this exact side hear about
+  // it, and only when the price actually moved.
+  const changed = previous !== formatted;
+  const notified = changed
+    ? await spawners.notifyPriceChange({ guild, settings, store, key, mode }).catch((err) => {
+        console.error('[spawners] Could not notify open tickets:', err);
+        return [];
+      })
+    : [];
+
   const label = mode === 'buy' ? 'Buying' : 'Selling';
   await interaction.editReply({
     embeds: [
@@ -111,13 +122,19 @@ async function execute(interaction, { store }) {
         'Spawner price updated',
         [
           `${spawners.spawnerEmoji(guild, type)} **${type.label}** · ${label} price is now **${formatted} each**`,
+          previous && previous !== formatted ? `-# was ${previous}` : null,
           '',
           posted
             ? `The board is live in ${posted.channel}.`
             : refreshed
               ? 'The prices board was updated.'
               : `I could not reach <#${spawners.PRICES_CHANNEL_ID}>. Give me **Send Messages** there and run \`!spawnerprices\` in it.`,
-        ].join('\n'),
+          notified.length
+            ? `Told **${notified.length}** open ${label.toLowerCase()} ticket${notified.length === 1 ? '' : 's'} about the change.`
+            : null,
+        ]
+          .filter((line) => line !== null)
+          .join('\n'),
       ),
     ],
   });

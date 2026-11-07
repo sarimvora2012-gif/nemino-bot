@@ -128,6 +128,7 @@ async function execute(interaction, { client }) {
           'Spawners without a price are simply not shown',
           '`!spawnerprices` — post or refresh the board in the current channel',
           '**Buy Spawners** and **Sell Spawners** open a ticket',
+          'Changing a price pings open tickets for that spawner with their new total',
         ].join('\n'),
       },
       {
