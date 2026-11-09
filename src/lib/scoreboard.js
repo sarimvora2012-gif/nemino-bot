@@ -434,6 +434,7 @@ function memberCard(guild, settings, member) {
     progress: {
       percent: xpForNext ? (xpIntoLevel / xpForNext) * 100 : 0,
       emoji: e('up'),
+      image: true,
       label: `${xpIntoLevel.toLocaleString('en-US')}/${xpForNext.toLocaleString(
         'en-US',
       )} XP to level ${level + 1}`,

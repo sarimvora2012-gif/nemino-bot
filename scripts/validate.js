@@ -982,7 +982,11 @@ test('activity check builds a wide Components V2 card', () => {
 
   const all = activityCardText(payload);
   assert.ok(all.includes('📊'));
-  assert.ok(all.includes('50%'));
+  assert.ok(payload.files?.length, 'the progress bar is drawn as an image');
+  assert.ok(
+    JSON.stringify(container.toJSON()).includes('attachment://progress.png'),
+    'the card references the drawn bar',
+  );
   assert.ok(all.includes('1 of 2 checked in'), 'the progress bar carries the staff count');
   assert.ok(!all.includes('👥'), 'no duplicate active-staff line');
   assert.ok(all.includes('🌴'));

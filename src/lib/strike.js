@@ -72,7 +72,7 @@ function normalizeStrikeId(input) {
   return `S-${match[1].padStart(4, '0')}`;
 }
 
-function strikesEmbed(user, strikes, color = COLORS.brand) {
+function strikesEmbed(user, strikes, guild, color = COLORS.brand) {
   const active = strikes.filter((strike) => strike.active);
   const voided = strikes.filter((strike) => !strike.active);
   const total = { Minor: 0, Moderate: 0, Severe: 0 };
@@ -108,7 +108,7 @@ function strikesEmbed(user, strikes, color = COLORS.brand) {
   }
 
   return embed({
-    title: `⚠️ Strikes — ${user.username}`,
+    title: `${icon(guild, 'warn')} Strikes — ${user.username}`,
     color: active.length ? color : COLORS.success,
     fields,
     thumbnail: user.displayAvatarURL(),
@@ -227,7 +227,7 @@ async function handleMessage(message, { store }) {
     const strikes = store.strikes(guild.id, user.id);
     await message.channel
       .send({
-        embeds: [strikesEmbed(user, strikes)],
+        embeds: [strikesEmbed(user, strikes, guild)],
         allowedMentions: { parse: [] },
       })
       .catch(() => {});
@@ -268,7 +268,7 @@ async function handleMessage(message, { store }) {
     await safeDM(user, {
       embeds: [
         embed({
-          title: '⚠️ You received a strike',
+          title: `${icon(guild, 'warn')} You received a strike`,
           description: [
             `**Strike:** ${strike.id}`,
             `**Reason:** ${reason}`,

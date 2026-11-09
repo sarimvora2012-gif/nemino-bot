@@ -158,11 +158,11 @@ function emojiTag(emoji) {
   return `<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>`;
 }
 
-function planLines({ planned, skipped, blocked }) {
+function planLines({ planned, skipped, blocked }, guild) {
   const fields = [];
 
   fields.push({
-    name: `🖼️ Icons to apply (${planned.length})`,
+    name: `${icon(guild, 'staff')} Icons to apply (${planned.length})`,
     value:
       planned
         .map(({ role, level, emoji, iconPath }) => {
@@ -175,14 +175,14 @@ function planLines({ planned, skipped, blocked }) {
 
   if (skipped.length) {
     fields.push({
-      name: `⏭️ No level matched (${skipped.length})`,
+      name: `${icon(guild, 'no')} No level matched (${skipped.length})`,
       value: skipped.map((role) => `**${role.name}**`).join(' · ').slice(0, 1024),
     });
   }
 
   if (blocked.length) {
     fields.push({
-      name: `⚠️ Above my role (${blocked.length})`,
+      name: `${icon(guild, 'warn')} Above my role (${blocked.length})`,
       value: blocked
         .map(({ role }) => `**${role.name}** — move my bot role above it`)
         .join('\n')
@@ -203,7 +203,7 @@ function previewCard(guild, plan) {
       '*Nothing has been changed yet.*',
     ].join('\n'),
     color: COLORS.brand,
-    fields: planLines(plan),
+    fields: planLines(plan, guild),
     footer: guild.name,
   });
 }
@@ -266,7 +266,7 @@ function resultCard(guild, { done, failed }) {
   const fields = [];
   if (done.length) {
     fields.push({
-      name: `✅ Applied (${done.length})`,
+      name: `${icon(guild, 'ok')} Applied (${done.length})`,
       value: done
         .map(({ role, method }) => `**${role.name}** · ${method}`)
         .join('\n')
@@ -275,7 +275,7 @@ function resultCard(guild, { done, failed }) {
   }
   if (failed.length) {
     fields.push({
-      name: `⚠️ Could not set (${failed.length})`,
+      name: `${icon(guild, 'warn')} Could not set (${failed.length})`,
       value: failed
         .map(({ role, reason }) => `**${role.name}** — ${reason}`)
         .join('\n')

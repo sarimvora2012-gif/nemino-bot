@@ -15,6 +15,7 @@ const {
   COLORS,
   truncate,
 } = require('../lib/helpers');
+const { icon } = require('../lib/emojis');
 
 const SUGGESTION_CHANNEL_ID = '1556519770998964275';
 
@@ -39,10 +40,10 @@ function voteCounts(suggestion) {
   };
 }
 
-function suggestionEmbed(suggestion) {
+function suggestionEmbed(suggestion, guild) {
   const { up, down } = voteCounts(suggestion);
   return embed({
-    title: '💡 Suggestion',
+    title: `${icon(guild, 'idea')} Suggestion`,
     description: truncate(suggestion.content, 3500),
     color: COLORS.brand,
     fields: [
@@ -115,7 +116,7 @@ async function execute(interaction, { store }) {
 
   const message = await channel
     .send({
-      embeds: [suggestionEmbed(suggestion)],
+      embeds: [suggestionEmbed(suggestion, interaction.guild)],
       components: [voteRow(suggestion)],
     })
     .catch((err) => {
@@ -189,7 +190,7 @@ async function handleButton(interaction, { store }) {
   });
 
   await interaction.update({
-    embeds: [suggestionEmbed(updated)],
+    embeds: [suggestionEmbed(updated, interaction.guild)],
     components: [voteRow(updated)],
   });
 

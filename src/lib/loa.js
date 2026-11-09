@@ -35,9 +35,9 @@ function loaRoleId(settings) {
   return settings?.activity?.loaRoleId || LOA_ROLE_ID;
 }
 
-function panelEmbed(roleId = LOA_ROLE_ID) {
+function panelEmbed(roleId = LOA_ROLE_ID, guild) {
   return embed({
-    title: '🌴 Leave of Absence',
+    title: `${icon(guild, 'palm')} Leave of Absence`,
     description: [
       'Need some time away from the server? You can request a leave of absence here.',
       '',
@@ -182,7 +182,7 @@ async function handleMessage(message, { store }) {
 
   try {
     await message.channel.send({
-      embeds: [panelEmbed(loaRoleId(settings))],
+      embeds: [panelEmbed(loaRoleId(settings), message.guild)],
       components: [panelRow()],
     });
   } catch (err) {

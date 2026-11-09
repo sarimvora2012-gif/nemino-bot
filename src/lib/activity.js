@@ -189,14 +189,15 @@ function buildEmbed(guild, check, reactedIds, { ended = false } = {}) {
   const allDone = missing === 0;
   const given = formatDuration(check.durationSeconds);
   const left = timeLeft(endsAtMs);
+  const e = iconsFor(guild);
 
   // Kept deliberately short and horizontal: a header, one instruction line and
   // one stat line, instead of a tall stack of fields.
   return v2.card({
     accent: allDone ? COLORS.success : ended ? COLORS.danger : COLORS.brand,
     kicker: toSmallCaps(check.auto ? 'automatic activity check' : 'staff activity check'),
-    title: ended ? '🏁 ACTIVITY CHECK — CLOSED' : '📊 ACTIVITY CHECK',
-    subtitle: ended ? 'Final results' : `⏳ ${left} left`,
+    title: `${e('chart')} ACTIVITY CHECK${ended ? ' — CLOSED' : ''}`,
+    subtitle: ended ? 'Final results' : `${e('clock')} ${left} left`,
     quote: ended
       ? `> 🏁 **Check closed** · ${CHECK_EMOJI} **${reacted}/${required.length}** reacted`
       : allDone
@@ -205,7 +206,8 @@ function buildEmbed(guild, check, reactedIds, { ended = false } = {}) {
     description: [`🌴 **${loa.length} on LOA**`, `🕒 **${given} given**`].join(' · '),
     progress: {
       percent,
-      emoji: allDone ? '🎯' : '📈',
+      emoji: allDone ? e('ok') : e('up'),
+      image: true,
       label: `${reacted} of ${required.length} checked in`,
     },
     thumbnail: guild.iconURL({ size: 256 }) ?? undefined,

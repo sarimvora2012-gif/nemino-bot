@@ -44,7 +44,7 @@ function welcomeCard(member, guild, memberCount) {
   const startHere = [
     `📜 **Read the rules** · <#${rulesId}>`,
     generalId ? `💬 **Say hi** · <#${generalId}>` : null,
-    '🎫 **Need help?** · open a ticket any time',
+    `${icon(guild, 'ticket')} **Need help?** · open a ticket any time`,
   ]
     .filter(Boolean)
     .join('   •   ');

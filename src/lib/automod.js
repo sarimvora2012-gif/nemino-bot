@@ -10,6 +10,7 @@ const {
   truncate,
   COLORS,
 } = require('./helpers');
+const { icon } = require('./emojis');
 
 /**
  * Bot-side AutoMod.
@@ -450,7 +451,7 @@ async function sendLinkAlert(message, settings, { linkReasons, links, action }) 
         : '🚨 suspicious link caught by AutoMod',
       embeds: [
         embed({
-          title: '🔗 Suspicious link',
+          title: `${icon(message.guild, 'warn')} Suspicious link`,
           color: COLORS.danger,
           description: `> AutoMod removed a message from ${message.author} in ${message.channel} for a link it judged dangerous.`,
           fields: [
@@ -573,7 +574,7 @@ async function handleMessage(message, { store }, { trackSpam = true } = {}) {
 
   await sendLog(message.guild, settings, [
     embed({
-      title: '🛡️ AutoMod action',
+      title: `${icon(message.guild, 'shield')} AutoMod action`,
       color: severity === 'high' ? COLORS.danger : COLORS.warning,
       fields: [
         { name: 'Member', value: `${message.author}`, inline: true },

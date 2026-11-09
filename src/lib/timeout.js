@@ -167,7 +167,7 @@ async function handleMessage(message, { store }) {
   await safeDM(target.user, {
     embeds: [
       embed({
-        title: '⏳ You were timed out',
+        title: `${icon(message.guild, 'clock')} You were timed out`,
         description: [
           `**Duration:** ${formatTimeout(ms)}`,
           `**Ends:** ${relative(expiresAt)}`,

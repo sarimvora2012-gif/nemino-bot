@@ -146,9 +146,9 @@ function claimRow(giveaway) {
   );
 }
 
-function activeEmbed(giveaway) {
+function activeEmbed(giveaway, guild) {
   return embed({
-    title: '🎉 Giveaway',
+    title: `${icon(guild, 'gift')} Giveaway`,
     description: [
       `**Prize:** ${giveaway.prize}`,
       `**Host:** <@${giveaway.hostId}>`,
@@ -358,7 +358,7 @@ async function execute(interaction, { store }) {
   };
 
   const message = await interaction.channel
-    .send({ embeds: [activeEmbed(giveaway)], components: [activeEntryRow(giveaway)] })
+    .send({ embeds: [activeEmbed(giveaway, interaction.guild)], components: [activeEntryRow(giveaway)] })
     .catch((err) => {
       console.error('[giveaway] Failed to post giveaway:', err);
       return null;
@@ -438,7 +438,7 @@ async function handleEnter(interaction, { store }, giveaway) {
 
   await interaction.message
     .edit({
-      embeds: [activeEmbed(giveaway)],
+      embeds: [activeEmbed(giveaway, interaction.guild)],
       // Without the row the button vanishes for everyone after the first entry.
       components: [activeEntryRow(giveaway)],
     })
@@ -551,7 +551,7 @@ async function handleClaim(interaction, ctx, giveaway) {
 
   const hostMention = host ? `<@${host.id}>` : 'the host';
   const welcome = embed({
-    title: `🎁 Prize claim — ${truncate(giveaway.prize, 200)}`,
+    title: `${icon(interaction.guild, 'gift')} Prize claim — ${truncate(giveaway.prize, 200)}`,
     description: [
       `Congratulations <@${claimant.id}>! You won **${giveaway.prize}**.`,
       '',

@@ -41,9 +41,9 @@ function guideEmbed(settings, guild) {
         name: `${e('app')} Applications`,
         value: [
           `Review applications in ${reviewChannel}.`,
-          '✅ **Accept** — only when the applicant meets the requirements.',
-          '❌ **Deny** — always give a clear reason. The applicant gets a 2-week cooldown.',
-          '🎫 **Open ticket** — use this to ask the applicant something privately.',
+          `${e('ok')} **Accept** — only when the applicant meets the requirements.`,
+          `${e('no')} **Deny** — always give a clear reason. The applicant gets a 2-week cooldown.`,
+          `${e('ticket')} **Open ticket** — use this to ask the applicant something privately.`,
           '**When:** read every answer, check their history, and never discuss an applicant in public. Ask another staff member before accepting or denying a friend.',
         ].join('\n'),
       },
@@ -66,8 +66,8 @@ function guideEmbed(settings, guild) {
         name: `${e('palm')} Leave of absence`,
         value: [
           `Review LOA requests in <#${LOA_REQUEST_CHANNEL_ID}>.`,
-          '✅ **Accept** — gives the member the LOA role and skips activity checks.',
-          '❌ **Deny** — explain why; the member is DMed the reason.',
+          `${e('ok')} **Accept** — gives the member the LOA role and skips activity checks.`,
+          `${e('no')} **Deny** — explain why; the member is DMed the reason.`,
           '**When:** check the dates and reason. Accept valid requests and never approve your own request.',
         ].join('\n'),
       },
@@ -75,7 +75,7 @@ function guideEmbed(settings, guild) {
         name: `${e('idea')} Suggestions`,
         value: [
           '`/suggestion suggestion:<text>` — Submit your own idea.',
-          `✅ **Approve** / ❌ **Reject** — Vote on suggestions in <#${SUGGESTION_CHANNEL_ID}> with the buttons.`,
+          `${e('ok')} **Approve** / ${e('no')} **Reject** — Vote on suggestions in <#${SUGGESTION_CHANNEL_ID}> with the buttons.`,
           '**When:** vote based on what is best for the server, not who posted it. You can change your vote.',
         ].join('\n'),
       },

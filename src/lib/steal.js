@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, COLORS } = require('./helpers');
+const { embed, errorEmbed, COLORS, icon } = require('./helpers');
 const { toSmallCaps } = require('./smallcaps');
 
 const PREFIX = '!steal';
@@ -115,9 +115,9 @@ async function replyAndClean(message, payload, delay) {
   await message.delete().catch(() => {});
 }
 
-function successCard(created, animated, totalEmojis) {
+function successCard(created, animated, totalEmojis, guild) {
   return embed({
-    title: '🎨 Emoji stolen!',
+    title: `${icon(guild, 'spark')} Emoji stolen!`,
     description: [
       `${created} **${created.name}** joined the server`,
       `-# ${animated ? '🧵 animated' : '🖼️ static'} · ${totalEmojis} emojis in this server`,
@@ -214,7 +214,7 @@ async function handleMessage(message, context) {
 
   await replyAndClean(
     message,
-    { embeds: [successCard(created, parsed.emoji.animated, guild.emojis.cache.size)] },
+    { embeds: [successCard(created, parsed.emoji.animated, guild.emojis.cache.size, guild)] },
     SHOW_MS,
   );
 }

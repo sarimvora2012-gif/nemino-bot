@@ -113,6 +113,7 @@ function rankCard(guild, settings, member) {
     progress: {
       percent,
       emoji: e('up'),
+      image: true,
       label: `${xpIntoLevel.toLocaleString('en-US')}/${xpForNext.toLocaleString('en-US')} XP · ${(xpForNext - xpIntoLevel).toLocaleString('en-US')} to go`,
     },
     thumbnail: member.displayAvatarURL?.({ size: 256 }) ?? member.user.displayAvatarURL?.(),
@@ -130,6 +131,7 @@ function levelUpCard(guild, member, level, xpIntoLevel, xpForNext) {
     progress: {
       percent: xpForNext ? (xpIntoLevel / xpForNext) * 100 : 0,
       emoji: e('up'),
+      image: true,
       label: `${xpIntoLevel}/${xpForNext} XP to level ${level + 1}`,
     },
     thumbnail: member.displayAvatarURL?.({ size: 256 }),

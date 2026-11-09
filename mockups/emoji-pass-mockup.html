@@ -88,10 +88,9 @@
   .btn { font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 4px; background: #5865f2; color: #fff; display: inline-flex; align-items: center; gap: 4px; }
   .btn.sec { background: #4e5058; }
 
-  .bar { margin-top: 5px; }
-  .bar .track { height: 6px; border-radius: 3px; background: #1e1f22; overflow: hidden; }
-  .bar .fill { height: 100%; width: 56%; background: linear-gradient(90deg, #57f287, #3ba55d); }
-  .bar .cap { font-size: 9px; color: #b5bac1; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+  /* the same PNG the bot attaches for the XP bar */
+  .xpbar { display: block; width: 100%; height: 16px; margin: 7px 0 5px; }
+  .cap { font-size: 9.5px; color: #b5bac1; display: flex; align-items: center; gap: 4px; }
 
   /* the real pack art */
   .ce { width: 14px; height: 14px; display: inline-block; vertical-align: -2.5px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
@@ -123,7 +122,7 @@
     </div>
   </div>
   <div class="board-meta">
-    <div><b>9</b> cards</div>
+    <div><b>10</b> cards · both bars drawn</div>
     <div><b>29</b> emoji slots</div>
     <div>Components V2 + classic embeds</div>
   </div>
@@ -243,10 +242,8 @@
         <div class="row"><img class="ce" src="/emoji/spark.png" alt="" /><span class="lbl">XP</span><span class="sep">·</span><span class="v">12,480</span></div>
         <div class="row"><span class="gl">💬</span><span class="lbl">Messages</span><span class="sep">·</span><span class="v">3,914</span></div>
       </div>
-      <div class="bar">
-        <div class="track"><div class="fill"></div></div>
-        <div class="cap"><img class="ce" src="/emoji/up.png" alt="up" /> 2,480/5,000 XP · 2,520 to go</div>
-      </div>
+      <img class="xpbar" src="/bar-rank.png" alt="XP progress bar" />
+      <div class="cap"><img class="ce" src="/emoji/up.png" alt="up" /> 2,480/5,000 XP · 2,520 to go</div>
       <div class="foot">Nemino</div>
     </article>
   </section>
@@ -264,6 +261,21 @@
         <div class="row"><span class="v dim" style="margin-left:18px"><b>#5</b> @void <span class="sep">·</span> 5,448</span></div>
       </div>
       <div class="foot">Levels</div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Activity check · live card</div>
+    <article class="card" style="--accent:#5865f2">
+      <div class="thumb">N</div>
+      <div class="kicker">ꜱᴛᴀꜰꜰ ᴀᴄᴛɪᴠɪᴛʏ ᴄʜᴇᴄᴋ</div>
+      <h2><img class="ce" src="/emoji/chart.png" alt="chart" /> ACTIVITY CHECK</h2>
+      <div class="subtitle"><img class="ce" src="/emoji/clock.png" alt="" /> 2h left</div>
+      <div class="quote"><img class="ce" src="/emoji/ok.png" alt="" /> <b>React with <img class="ce" src="/emoji/ok.png" alt="" /> below to check in</b> · 🌴 LOA is skipped automatically</div>
+      <div class="embedbody"><p>🌴 <b>3 on LOA</b> · 🕒 <b>48h given</b></p></div>
+      <img class="xpbar" src="/bar-activity.png" alt="Activity progress bar" />
+      <div class="cap"><img class="ce" src="/emoji/up.png" alt="up" /> 18 of 24 checked in</div>
+      <div class="foot">made by seraphum</div>
     </article>
   </section>
 

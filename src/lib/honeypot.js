@@ -87,16 +87,16 @@ function isModOrAbove(member, guild) {
   );
 }
 
-function panelCard(kicks = 0) {
+function panelCard(kicks = 0, guild) {
   const count = Number(kicks) || 0;
   return v2.card({
     accent: COLORS.danger,
     kicker: toSmallCaps('server security'),
-    title: '🍯 HONEYPOT CHANNEL',
+    title: `${icon(guild, 'honey')} HONEYPOT CHANNEL`,
     quote: '> 🚫 **DO NOT TALK IN HERE**',
     stats: [
       { emoji: '🚪', label: 'Kicked', value: `${count}` },
-      { emoji: '🛡️', label: 'Mods', value: 'immune' },
+      { emoji: icon(guild, 'shield'), label: 'Mods', value: 'immune' },
     ],
     sections: [
       '> ⛔ Sending **any** message in this channel kicks you from the server instantly.',
@@ -215,7 +215,7 @@ async function findExistingPanel(channel, botId) {
 async function ensurePanel(channel, settings, store) {
   if (!channel?.isTextBased?.()) return null;
   const config = settings.honeypot;
-  const payload = { ...panelCard(config.kicks ?? 0), allowedMentions: { parse: [] } };
+  const payload = { ...panelCard(config.kicks ?? 0, channel.guild), allowedMentions: { parse: [] } };
 
   const existing =
     (config.messageId ? await channel.messages.fetch(config.messageId).catch(() => null) : null) ??

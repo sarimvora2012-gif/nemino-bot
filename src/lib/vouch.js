@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, successEmbed, sendLog, COLORS, trophyEmoji } = require('./helpers');
+const { embed, errorEmbed, successEmbed, sendLog, COLORS, trophyEmoji, icon } = require('./helpers');
 const v2 = require('./v2');
 const { toSmallCaps } = require('./smallcaps');
 
@@ -348,7 +348,7 @@ async function handleMessage(message, { store }) {
 
     await sendLog(guild, settings, [
       embed({
-        title: '🛠️ Vouches added manually',
+        title: `${icon(guild, 'vouch')} Vouches added manually`,
         description: [
           `**Member:** ${target}`,
           `**Amount:** ${amount}`,
@@ -391,7 +391,7 @@ async function handleMessage(message, { store }) {
       .reply({
         embeds: [
           embed({
-            title: '🔄 Vouch nicknames resynced',
+            title: `${icon(message.guild, 'swap')} Vouch nicknames resynced`,
             description: lines.join('\n'),
             color: synced.failed.length ? COLORS.warning : COLORS.success,
           }),

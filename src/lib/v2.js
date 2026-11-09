@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const {
+  AttachmentBuilder,
   ContainerBuilder,
   FileBuilder,
   MessageFlags,
@@ -12,6 +13,9 @@ const {
   TextDisplayBuilder,
   ThumbnailBuilder,
 } = require('discord.js');
+const { progressBarPng } = require('./progressbar');
+
+const BAR_FILE = 'progress.png';
 
 const DEFAULT_COLOR = 0x5865f2;
 const TEXT_LIMIT = 4000;
@@ -151,6 +155,7 @@ function card({
   buttons = [],
 } = {}) {
   const container = new ContainerBuilder().setAccentColor(accent);
+  const files = [];
 
   const headerLines = [];
   if (kicker) headerLines.push(`-# ${kicker}`);
@@ -197,13 +202,27 @@ function card({
 
   if (progress) {
     const percent = Math.max(0, Math.min(100, Math.round(progress.percent ?? 0)));
-    const filled = Math.round(percent / 10);
-    const bar = `${'█'.repeat(filled)}${'░'.repeat(10 - filled)}`;
-    container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        `${progress.emoji ?? '📊'} \`${bar}\` **${percent}%**${progress.label ? ` · ${progress.label}` : ''}`,
-      ),
-    );
+    if (progress.image) {
+      // Discord text has no colour, so the level cards send the bar as a drawn
+      // PNG and keep the caption underneath it.
+      files.push(new AttachmentBuilder(progressBarPng({ percent }), { name: BAR_FILE }));
+      container.addMediaGalleryComponents(
+        new MediaGalleryBuilder().addItems((item) => item.setURL(`attachment://${BAR_FILE}`)),
+      );
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `${progress.emoji ?? '📊'}${progress.label ? ` ${progress.label}` : ''}`,
+        ),
+      );
+    } else {
+      const filled = Math.round(percent / 10);
+      const bar = `${'█'.repeat(filled)}${'░'.repeat(10 - filled)}`;
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(
+          `${progress.emoji ?? '📊'} \`${bar}\` **${percent}%**${progress.label ? ` · ${progress.label}` : ''}`,
+        ),
+      );
+    }
   }
 
   for (const section of sections) {
@@ -228,7 +247,11 @@ function card({
     for (const row of buttons) container.addActionRowComponents(row);
   }
 
-  return { components: [container], flags: MessageFlags.IsComponentsV2 };
+  return {
+    components: [container],
+    flags: MessageFlags.IsComponentsV2,
+    ...(files.length ? { files } : {}),
+  };
 }
 
 /** Turns a card payload into an ephemeral interaction payload. */

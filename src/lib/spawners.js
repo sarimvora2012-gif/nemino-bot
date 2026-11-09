@@ -347,7 +347,7 @@ function ticketIntro({ user, mode, guild, settings, channelId, order = null }) {
   return {
     embeds: [
       embed({
-        title: buying ? '🛒 Spawner purchase ticket' : '💰 Spawner sale ticket',
+        title: `${icon(guild, 'money')} ${buying ? 'Spawner purchase ticket' : 'Spawner sale ticket'}`,
         description: [
           `Hey ${user}, a member of the team will be with you shortly.`,
           ...orderLines,
@@ -506,7 +506,7 @@ async function handleButton(interaction, { store }) {
   await interaction.reply({
     embeds: [
       embed({
-        title: mode === 'buy' ? '🛒 Buying spawners' : '💰 Selling spawners',
+        title: `${icon(interaction.guild, 'money')} ${mode === 'buy' ? 'Buying spawners' : 'Selling spawners'}`,
         description: 'Pick the spawner first — then tell me how many you want.',
         color: mode === 'buy' ? COLORS.danger : COLORS.success,
       }),

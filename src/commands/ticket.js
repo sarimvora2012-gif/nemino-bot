@@ -760,7 +760,7 @@ async function closeTicket(client, channel, ticket, settings, { closedBy, reason
           ? []
           : [
               {
-                name: '⚠️ Channel not deleted',
+                name: `${icon(channel.guild, 'warn')} Channel not deleted`,
                 value: truncate(deletion.error ?? 'unknown error', 300),
               },
             ]),
