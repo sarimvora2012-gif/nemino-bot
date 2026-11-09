@@ -216,17 +216,12 @@ async function execute(interaction, { store }) {
   const hasTargetRole = member.roles.cache.has(targetRole.id);
 
   if (isPromote) {
-    if (hasTargetRole) {
-      await interaction.reply({
-        embeds: [errorEmbed(`${member} already has ${targetRole}.`)],
-        flags: MessageFlags.Ephemeral,
-        allowedMentions: SILENT_MENTIONS,
-      });
-      return;
-    }
-
+    // Already having the role is not an error: there is nothing to add, but the
+    // card and the DM still go out so the promotion is recorded.
     try {
-      await member.roles.add(targetRole, `Promoted by ${interaction.user.tag}: ${reason}`);
+      if (!hasTargetRole) {
+        await member.roles.add(targetRole, `Promoted by ${interaction.user.tag}: ${reason}`);
+      }
     } catch (err) {
       console.error('[promote] Role update failed:', err);
       await interaction.reply({
@@ -262,15 +257,8 @@ async function execute(interaction, { store }) {
     });
     return;
   }
-  if (hasTargetRole) {
-    await interaction.reply({
-      embeds: [errorEmbed(`${member} already has ${targetRole}.`)],
-      flags: MessageFlags.Ephemeral,
-      allowedMentions: SILENT_MENTIONS,
-    });
-    return;
-  }
-  if (!requestedFromRole && targetRole.position >= member.roles.highest.position) {
+  // Already sitting at the target role is fine — the higher role still comes off.
+  if (!requestedFromRole && !hasTargetRole && targetRole.position >= member.roles.highest.position) {
     await interaction.reply({
       embeds: [
         errorEmbed(
@@ -285,6 +273,7 @@ async function execute(interaction, { store }) {
   }
 
   let fromRole = requestedFromRole;
+  let hasFromRole = false;
   if (fromRole) {
     if (specialRoleIds.has(fromRole.id)) {
       await interaction.reply({
@@ -294,14 +283,9 @@ async function execute(interaction, { store }) {
       });
       return;
     }
-    if (!member.roles.cache.has(fromRole.id)) {
-      await interaction.reply({
-        embeds: [errorEmbed(`${member} does not have ${fromRole}.`)],
-        flags: MessageFlags.Ephemeral,
-        allowedMentions: SILENT_MENTIONS,
-      });
-      return;
-    }
+    // Not holding that role is not an error either: nothing to remove, and the
+    // demotion is still recorded.
+    hasFromRole = member.roles.cache.has(fromRole.id);
     if (!canManageRole(guild, fromRole)) {
       await interaction.reply({
         embeds: [errorEmbed(`I cannot remove ${fromRole}. It may be above my highest role.`)],
@@ -344,9 +328,10 @@ async function execute(interaction, { store }) {
       });
       return;
     }
+    hasFromRole = true;
   }
 
-  if (fromRole.position <= targetRole.position) {
+  if (hasFromRole && fromRole.position <= targetRole.position) {
     await interaction.reply({
       embeds: [
         errorEmbed(
@@ -362,9 +347,13 @@ async function execute(interaction, { store }) {
 
   let targetAdded = false;
   try {
-    await member.roles.add(targetRole, `Demoted by ${interaction.user.tag}: ${reason}`);
-    targetAdded = true;
-    await member.roles.remove(fromRole, `Demoted by ${interaction.user.tag}: ${reason}`);
+    if (!hasTargetRole) {
+      await member.roles.add(targetRole, `Demoted by ${interaction.user.tag}: ${reason}`);
+      targetAdded = true;
+    }
+    if (hasFromRole) {
+      await member.roles.remove(fromRole, `Demoted by ${interaction.user.tag}: ${reason}`);
+    }
   } catch (err) {
     console.error('[demote] Role update failed:', err);
     if (targetAdded) {
@@ -479,7 +468,7 @@ function movementCard({ guild, member, targetRole, fromRole, moderator, reason, 
       {
         emoji: isPromote ? '🏅' : '🔄',
         label: isPromote ? 'New role' : 'Role change',
-        value: isPromote ? `${targetRole}` : `${fromRole} → ${targetRole}`,
+        value: isPromote || !fromRole ? `${targetRole}` : `${fromRole} → ${targetRole}`,
       },
       { emoji: '🛡️', label: 'Moderator', value: `${moderator}` },
       { emoji: '📝', label: 'Reason', value: reason },
