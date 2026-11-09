@@ -316,15 +316,20 @@ function mentionChunks(ids, limit = 2500) {
 
 /**
  * Posts the end-of-check results in the check channel: high staff are pinged
- * once, and every member who never reacted is listed. Only the high-staff role
- * mention is allowed to notify; the member mentions are shown, not pinged.
+ * once and the counts are shown. The names are deliberately not listed here —
+ * they go to the attendance channel only (see postMissedList), so a check
+ * channel that more people can read reveals how many missed, never who. The
+ * exception is a check that ran in the attendance channel itself, where the
+ * names are already visible to the same people.
  */
 async function postResults(channel, guild, settings, check, missing) {
   if (!missing?.length || !channel?.isTextBased?.()) return 0;
 
   const role = highStaffRoleFor(guild, settings);
   const reacted = (check.requiredIds ?? []).filter((id) => !missing.includes(id)).length;
-  const chunks = mentionChunks(missing);
+  const showNames = channel.id === MISSED_CHANNEL_ID;
+  // Always one card with the counts, even when the names stay behind.
+  const chunks = showNames ? mentionChunks(missing) : [null];
 
   for (let index = 0; index < chunks.length; index += 1) {
     const first = index === 0;
@@ -333,7 +338,13 @@ async function postResults(channel, guild, settings, check, missing) {
       kicker: toSmallCaps('activity check results'),
       title: first ? '📋 MISSED THE CHECK' : '📋 MISSED THE CHECK — MORE',
       description: first
-        ? `${role ? `<@&${role.id}>` : '**High staff**'}\n**${missing.length}** active staff did not react before the check closed.`
+        ? [
+            role ? `<@&${role.id}>` : '**High staff**',
+            `**${missing.length}** active staff did not react before the check closed.`,
+            showNames ? '' : `-# Names are in <#${MISSED_CHANNEL_ID}>.`,
+          ]
+            .filter(Boolean)
+            .join('\n')
         : '-# Continued',
       stats: first
         ? [
@@ -342,7 +353,7 @@ async function postResults(channel, guild, settings, check, missing) {
             { emoji: '❌', label: 'Missed', value: `${missing.length}` },
           ]
         : [],
-      sections: [chunks[index]],
+      sections: chunks[index] ? [chunks[index]] : [],
       thumbnail: guild.iconURL?.({ size: 256 }) ?? undefined,
       footer: 'Activity check',
     });

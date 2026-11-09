@@ -10,7 +10,7 @@ const {
 } = require('../lib/helpers');
 const v2 = require('../lib/v2');
 const staffname = require('../lib/staffname');
-const { toSmallCaps } = require('../lib/smallcaps');
+const { fontKey, toSmallCaps } = require('../lib/smallcaps');
 
 const SILENT_MENTIONS = { parse: [], users: [], roles: [] };
 const STAFF_MOVEMENT_CHANNEL_ID = '1528259332876275742';
@@ -23,11 +23,13 @@ const data = [
     .addUserOption((opt) =>
       opt.setName('user').setDescription('Member to promote').setRequired(true),
     )
-    .addRoleOption((opt) =>
+    .addStringOption((opt) =>
       opt
         .setName('role')
-        .setDescription('Role to give — selecting it here never notifies the role')
-        .setRequired(true),
+        .setDescription('Type to search — normal letters find the role however its font looks')
+        .setRequired(true)
+        .setAutocomplete(true)
+        .setMaxLength(100),
     )
     .addStringOption((opt) =>
       opt.setName('reason').setDescription('Reason, shown in the log and the DM').setMaxLength(500),
@@ -40,21 +42,83 @@ const data = [
     .addUserOption((opt) =>
       opt.setName('user').setDescription('Member to demote').setRequired(true),
     )
-    .addRoleOption((opt) =>
+    .addStringOption((opt) =>
       opt
         .setName('role')
-        .setDescription('The role they are demoted to — selecting it never notifies the role')
-        .setRequired(true),
+        .setDescription('The role they are demoted to — type normal letters, no odd font needed')
+        .setRequired(true)
+        .setAutocomplete(true)
+        .setMaxLength(100),
     )
-    .addRoleOption((opt) =>
+    .addStringOption((opt) =>
       opt
         .setName('current_role')
-        .setDescription('Role to remove (auto-detected from their highest role above the target)'),
+        .setDescription('Role to remove (auto-detected from their highest role above the target)')
+        .setAutocomplete(true)
+        .setMaxLength(100),
     )
     .addStringOption((opt) =>
       opt.setName('reason').setDescription('Reason, shown in the log and the DM').setMaxLength(500),
     ),
 ];
+
+/** Roles the bot can hand out or take away, highest first. */
+function searchableRoles(guild) {
+  const highest = guild?.members?.me?.roles?.highest?.position;
+  return [...(guild?.roles?.cache?.values?.() ?? [])]
+    .filter((role) => role.id !== guild?.id && !role.managed)
+    .filter((role) => !Number.isFinite(highest) || role.position < highest)
+    .sort((a, b) => b.position - a.position);
+}
+
+/**
+ * The roles whose name matches what was typed, ignoring the decorative font:
+ * `mod`, `MOD` and `ᴍᴏᴅ` all find `ᴍᴏᴅ`, and a picked suggestion is a role id.
+ */
+function findRoles(guild, input) {
+  const value = String(input ?? '').trim();
+  const roles = searchableRoles(guild);
+  if (!value) return roles;
+
+  const byId = roles.find((role) => role.id === value);
+  if (byId) return [byId];
+
+  const key = fontKey(value);
+  if (!key) return [];
+  const exact = roles.filter((role) => fontKey(role.name) === key);
+  return exact.length ? exact : roles.filter((role) => fontKey(role.name).includes(key));
+}
+
+/** One role for a slash-command option, or the reason no single role matched. */
+function resolveRole(guild, input) {
+  const value = String(input ?? '').trim();
+  if (!value) return { role: null, error: null };
+
+  const matches = findRoles(guild, value);
+  if (matches.length === 1) return { role: matches[0], error: null };
+  if (!matches.length) {
+    return {
+      role: null,
+      error: `I could not find a role matching **${value}**. Type normal letters — \`mod\` finds \`ᴍᴏᴅ\` too.`,
+    };
+  }
+  return {
+    role: null,
+    error: `**${value}** matches ${matches.length} roles: ${matches
+      .slice(0, 10)
+      .map((role) => role.name)
+      .join(', ')}. Pick one from the list instead.`,
+  };
+}
+
+/** Live role search, so nobody has to type a role's decorative characters. */
+async function autocomplete(interaction) {
+  const query = String(interaction.options.getFocused(true)?.value ?? '');
+  const choices = findRoles(interaction.guild, query)
+    .slice(0, 25)
+    .map((role) => ({ name: [...String(role.name)].slice(0, 100).join(''), value: role.id }));
+  await interaction.respond(choices).catch(() => {});
+}
 
 async function execute(interaction, { store }) {
   const guild = interaction.guild;
@@ -77,8 +141,28 @@ async function execute(interaction, { store }) {
   }
 
   const targetUser = interaction.options.getUser('user');
-  const targetRole = interaction.options.getRole('role');
-  const requestedFromRole = interaction.options.getRole('current_role');
+
+  const chosenRole = resolveRole(guild, interaction.options.getString('role'));
+  if (chosenRole.error) {
+    await interaction.reply({
+      embeds: [errorEmbed(chosenRole.error, 'Role not found')],
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: SILENT_MENTIONS,
+    });
+    return;
+  }
+  const chosenFromRole = resolveRole(guild, interaction.options.getString('current_role'));
+  if (chosenFromRole.error) {
+    await interaction.reply({
+      embeds: [errorEmbed(chosenFromRole.error, 'Role not found')],
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: SILENT_MENTIONS,
+    });
+    return;
+  }
+
+  const targetRole = chosenRole.role;
+  const requestedFromRole = chosenFromRole.role;
   const reason = interaction.options.getString('reason') ?? 'No reason provided';
 
   if (targetUser.bot) {
@@ -426,4 +510,14 @@ function memberDM({ guild, targetRole, moderator, reason, action, color }) {
   });
 }
 
-module.exports = { data, execute, STAFF_MOVEMENT_CHANNEL_ID, memberDM, movementCard };
+module.exports = {
+  data,
+  execute,
+  autocomplete,
+  findRoles,
+  resolveRole,
+  searchableRoles,
+  STAFF_MOVEMENT_CHANNEL_ID,
+  memberDM,
+  movementCard,
+};

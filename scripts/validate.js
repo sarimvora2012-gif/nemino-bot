@@ -178,14 +178,41 @@ test('promote and demote require a user and a role', () => {
     const required = options.filter((option) => option.required).map((option) => option.name).sort();
     assert.deepEqual(required, ['role', 'user'], `${name} should require user and role`);
     const roleOption = options.find((option) => option.name === 'role');
-    assert.equal(roleOption.type, 8, `${name} role option should be a role picker`);
+    assert.equal(roleOption.type, 3, `${name} role option is a searched text field`);
+    assert.equal(roleOption.autocomplete, true, `${name} role option autocompletes`);
     assert.ok(!options.some((option) => option.name === 'rank'), `${name} should not have a rank option`);
   }
   const demote = jsonByName.get('demote');
   const currentRole = demote.options.find((option) => option.name === 'current_role');
   assert.ok(currentRole, 'demote should offer current_role');
-  assert.equal(currentRole.type, 8);
+  assert.equal(currentRole.type, 3);
+  assert.equal(currentRole.autocomplete, true);
   assert.equal(currentRole.required, false);
+});
+test('roles are found by their plain name whatever the font', () => {
+  const roles = [
+    { id: 'r1', name: 'ᴍᴏᴅ', position: 5, managed: false },
+    { id: 'r2', name: 'ʜᴇᴀᴅ ᴍᴏᴅ', position: 6, managed: false },
+    { id: 'r3', name: 'Member', position: 1, managed: false },
+    { id: 'r4', name: 'Bots', position: 9, managed: true },
+  ];
+  const guild = {
+    id: 'g',
+    roles: { cache: new Map(roles.map((role) => [role.id, role])) },
+    members: { me: { roles: { highest: { position: 10 } } } },
+  };
+
+  assert.deepEqual(modules.staff.findRoles(guild, 'mod').map((role) => role.id), ['r1']);
+  assert.deepEqual(modules.staff.findRoles(guild, 'HEAD MOD').map((role) => role.id), ['r2']);
+  assert.deepEqual(modules.staff.findRoles(guild, 'r3').map((role) => role.id), ['r3'], 'a role id still works');
+  assert.deepEqual(modules.staff.findRoles(guild, 'missing'), []);
+  assert.equal(modules.staff.resolveRole(guild, 'mod').role.id, 'r1');
+  assert.ok(modules.staff.resolveRole(guild, 'nope').error.includes('could not find'));
+  assert.equal(typeof modules.staff.autocomplete, 'function');
+  assert.ok(
+    !modules.staff.findRoles(guild, '').some((role) => role.id === 'r4'),
+    'managed roles are never offered',
+  );
 });
 
 console.log('\nOption shape');
@@ -1077,18 +1104,37 @@ test('the results card pings high staff and lists who missed the check', async (
   assert.equal(count, 1);
   const text = cardText(sent[0]);
   assert.ok(text.includes('<@&high>'), 'the high staff role is mentioned');
-  assert.ok(text.includes('<@2>') && text.includes('<@3>'), 'every missed member is listed');
-  assert.ok(!text.includes('<@1>'), 'members who reacted are not listed');
+  assert.ok(
+    !text.includes('<@2>') && !text.includes('<@3>'),
+    'names never appear outside the attendance channel',
+  );
+  assert.ok(text.includes(`<#${activity.MISSED_CHANNEL_ID}>`), 'it points at the attendance channel');
   assert.deepEqual(
     sent[0].allowedMentions,
     { parse: [], roles: ['high'] },
-    'only the role may notify, the member mentions are silent',
+    'only the role may notify',
   );
+
+  sent.length = 0;
+  const attendanceCheckChannel = { ...channel, id: activity.MISSED_CHANNEL_ID };
+  await activity.postResults(
+    attendanceCheckChannel,
+    guild,
+    settings,
+    { requiredIds: ['1', '2', '3'], loaIds: ['9'] },
+    ['2', '3'],
+  );
+  const attendanceText = cardText(sent[0]);
+  assert.ok(
+    attendanceText.includes('<@2>') && attendanceText.includes('<@3>'),
+    'names are listed when the check ran in the attendance channel',
+  );
+  assert.ok(!attendanceText.includes('<@1>'), 'members who reacted are not listed');
 
   sent.length = 0;
   const many = Array.from({ length: 250 }, (_, index) => `10${index}`);
   const chunks = await activity.postResults(
-    channel,
+    attendanceCheckChannel,
     guild,
     settings,
     { requiredIds: many, loaIds: [] },
