@@ -7,6 +7,8 @@ const { toPlain, toSmallCaps } = require('./smallcaps');
 
 const CHECK_EMOJI = '✅';
 const DEFAULT_LOA_ROLE_ID = '1539905285789982781';
+/** Where the list of members who missed a check is kept as the attendance record. */
+const MISSED_CHANNEL_ID = '1565222981343383562';
 const TICK_MS = 30_000;
 const AUTO_MIN_INTERVAL = 60 * 60;
 const MEMBER_FETCH_TIMEOUT_MS = 20_000;
@@ -356,6 +358,53 @@ async function postResults(channel, guild, settings, check, missing) {
   return chunks.length;
 }
 
+/** The attendance channel, cached first and fetched when the bot has no copy. */
+async function missedChannel(guild) {
+  const cached = guild?.channels?.cache?.get?.(MISSED_CHANNEL_ID);
+  if (cached) return cached.isTextBased?.() ? cached : null;
+  if (typeof guild?.channels?.fetch !== 'function') return null;
+  const fetched = await guild.channels.fetch(MISSED_CHANNEL_ID).catch(() => null);
+  return fetched?.isTextBased?.() ? fetched : null;
+}
+
+/**
+ * Keeps the list of members who missed a check in its own channel, so the record
+ * does not scroll away with the check card. Mentions are shown but never pinged
+ * here, and a check that ran in this channel is not repeated.
+ */
+async function postMissedList(guild, check, missing) {
+  if (!missing?.length) return 0;
+  if (check?.channelId === MISSED_CHANNEL_ID) return 0;
+
+  const channel = await missedChannel(guild);
+  if (!channel) {
+    console.warn('[activity] Could not find the missed-check channel; the list was only posted with the results.');
+    return 0;
+  }
+
+  const chunks = mentionChunks(missing);
+  for (let index = 0; index < chunks.length; index += 1) {
+    const first = index === 0;
+    const card = v2.card({
+      accent: COLORS.danger,
+      kicker: toSmallCaps('activity check'),
+      title: first ? '❌ MISSED THE ACTIVITY CHECK' : '❌ MISSED THE ACTIVITY CHECK — MORE',
+      description: first
+        ? `**${missing.length}** active staff did not react before the check closed.\n-# ${(check?.requiredIds ?? []).length} checked · ${(check?.loaIds ?? []).length} on LOA`
+        : '-# Continued',
+      sections: [chunks[index]],
+      thumbnail: guild?.iconURL?.({ size: 256 }) ?? undefined,
+      footer: 'Activity check',
+    });
+
+    await channel
+      .send({ ...card, allowedMentions: { parse: [] } })
+      .catch((err) => console.error('[activity] Failed to post the missed-check list:', err.message));
+  }
+
+  return chunks.length;
+}
+
 /** Pings the staff role (LOA members included, they can ignore it) when a check starts. */
 async function pingStaffStarted(channel, activeIds, roleId) {
   await pingStaff(
@@ -446,6 +495,9 @@ async function refreshCheck(ctx, guild, { ping = false, final = false, reconcile
     ctx.store.save();
 
     await postResults(channel, guild, settings, check, missing);
+    // The attendance record goes to its own channel too, so it is still there
+    // after the check card has scrolled away.
+    await postMissedList(guild, check, missing);
 
     await sendLog(guild, settings, [
       embed({
@@ -734,6 +786,9 @@ module.exports = {
   mentionChunks,
   pingMissing,
   postResults,
+  postMissedList,
+  missedChannel,
+  MISSED_CHANNEL_ID,
   pingStaffStarted,
   pingStaff,
   staffMention,

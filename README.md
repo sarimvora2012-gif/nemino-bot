@@ -262,6 +262,8 @@ The card is deliberately wide and short: a heading with the time remaining in ho
 
 When a check closes with staff who never reacted, a **results card** is posted in the same channel: it pings the high-staff role once and lists every member who missed the check. The role comes from `/config set high_staff_role:@role`; if that is unset it uses the AutoMod alert role, and failing that any role whose name reads as “high staff” in any font. Only the role mention notifies — the member mentions are shown in full but silenced, so nobody is pinged twice. Very long lists continue on extra cards, and the role is only pinged on the first one.
 
+The same list is also posted in <#1565222981343383562> as the attendance record, so it stays readable after the check card scrolls away. Nothing is pinged there — the member mentions are silent — and a check that ran in that channel is not duplicated.
+
 ### Leave of absence
 | Command | Description |
 | --- | --- |

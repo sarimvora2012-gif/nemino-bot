@@ -1109,6 +1109,49 @@ test('the results card pings high staff and lists who missed the check', async (
   const source = fs.readFileSync(path.join(root, 'src', 'lib', 'activity.js'), 'utf8');
   assert.ok(source.includes('await postResults(channel, guild, settings, check, missing)'));
 });
+test('who missed the check is also listed in the attendance channel', async () => {
+  const sent = [];
+  const attendance = {
+    id: activity.MISSED_CHANNEL_ID,
+    isTextBased: () => true,
+    send: async (payload) => {
+      sent.push(payload);
+      return {};
+    },
+  };
+  const guild = {
+    iconURL: () => null,
+    channels: { cache: new Map([[attendance.id, attendance]]) },
+  };
+  const cardText = (payload) =>
+    payload.components[0]
+      .toJSON()
+      .components.map((component) => component.content ?? '')
+      .join('\n');
+  const check = { requiredIds: ['1', '2', '3'], loaIds: ['9'], channelId: 'c-check' };
+
+  const count = await activity.postMissedList(guild, check, ['2', '3']);
+  assert.equal(count, 1);
+  const text = cardText(sent[0]);
+  assert.ok(text.includes('<@2>') && text.includes('<@3>'), 'every missed member is listed');
+  assert.ok(!text.includes('<@1>'), 'members who reacted are not listed');
+  assert.deepEqual(sent[0].allowedMentions, { parse: [] }, 'the attendance list never pings anyone');
+
+  sent.length = 0;
+  assert.equal(
+    await activity.postMissedList(guild, { ...check, channelId: activity.MISSED_CHANNEL_ID }, ['1']),
+    0,
+    'a check that ran in the attendance channel is not repeated',
+  );
+  assert.equal(sent.length, 0);
+
+  assert.equal(await activity.postMissedList(guild, check, []), 0, 'nothing is posted when everyone reacted');
+  assert.equal(
+    await activity.postMissedList({ iconURL: () => null }, check, ['1']),
+    0,
+    'a missing attendance channel never breaks the check',
+  );
+});
 test('check-ins are tracked from the gateway, not polled from Discord', () => {
   const guildId = 'g1';
   let saves = 0;
