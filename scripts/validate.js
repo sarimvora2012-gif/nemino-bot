@@ -2834,6 +2834,24 @@ test('the ticket total is the current price times the amount', () => {
   assert.equal(spawners.parseAmount('').ok, false);
 });
 
+test('a purchase ticket quotes the higher price and a sale the lower', () => {
+  const settings = { spawners: { buy: { creeper: 13, pig: 9 }, sell: { creeper: 16 } } };
+  const quote = (store, key, mode) => {
+    const result = spawners.ticketPrice(store, key, mode);
+    return result.ok ? spawners.formatMillions(result.value) : null;
+  };
+
+  assert.equal(quote(settings, 'creeper', 'buy'), '16M', 'buying costs the higher number');
+  assert.equal(quote(settings, 'creeper', 'sell'), '13M', 'selling earns the lower number');
+  assert.equal(quote(settings, 'pig', 'buy'), '9M', 'one price is used on both sides');
+  assert.equal(quote(settings, 'pig', 'sell'), '9M');
+  assert.equal(quote(settings, 'cow', 'buy'), null, 'no price, no quote');
+
+  const reversed = { spawners: { buy: { creeper: 20 }, sell: { creeper: 11 } } };
+  assert.equal(quote(reversed, 'creeper', 'buy'), '20M', 'buying is the higher number either way');
+  assert.equal(quote(reversed, 'creeper', 'sell'), '11M');
+});
+
 test('spawner tickets ping the spawner perms role', () => {
   const role = (id, name) => ({ id, name });
   const roles = [

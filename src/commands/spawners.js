@@ -105,8 +105,8 @@ async function execute(interaction, { store }) {
     }
   }
 
-  // Only tickets that ordered this exact spawner on this exact side hear about
-  // it, and only when the price actually moved.
+  // Only open tickets for this spawner whose quoted price actually moved hear
+  // about it.
   const changed = previous !== formatted;
   const notified = changed
     ? await spawners.notifyPriceChange({ guild, settings, store, key, mode }).catch((err) => {
@@ -130,7 +130,7 @@ async function execute(interaction, { store }) {
               ? 'The prices board was updated.'
               : `I could not reach <#${spawners.PRICES_CHANNEL_ID}>. Give me **Send Messages** there and run \`!spawnerprices\` in it.`,
           notified.length
-            ? `Told **${notified.length}** open ${label.toLowerCase()} ticket${notified.length === 1 ? '' : 's'} about the change.`
+            ? `Told **${notified.length}** open ticket${notified.length === 1 ? '' : 's'} about the change.`
             : null,
         ]
           .filter((line) => line !== null)

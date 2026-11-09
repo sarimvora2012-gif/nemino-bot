@@ -190,6 +190,37 @@ function pricedLines(guild, settings, mode) {
   return SPAWNER_TYPES.map((type) => priceLine(guild, settings, type, mode)).filter(Boolean);
 }
 
+/**
+ * The price a member is actually quoted. The board is written from the shop's
+ * side (what we buy for, what we sell for), while the buttons are the member's
+ * side: buying a spawner always costs the higher of the two numbers and
+ * selling one always earns the lower. That spread is the shop's margin, so a
+ * purchase ticket can never quote the cheaper side, whichever list the price
+ * was typed into. With only one price set, both sides use it.
+ */
+function ticketPrice(settings, key, mode) {
+  const values = ['buy', 'sell']
+    .map((side) => validatePrice(pricesFor(settings, side)[key]))
+    .filter((parsed) => parsed.ok)
+    .map((parsed) => parsed.value);
+  if (!values.length) return { ok: false };
+
+  const value = mode === 'sell' ? Math.min(...values) : Math.max(...values);
+  return { ok: true, value };
+}
+
+/** One ticket price line, quoted from the member's side. */
+function ticketLine(guild, settings, type, mode) {
+  const quoted = ticketPrice(settings, type.key, mode);
+  if (!quoted.ok) return null;
+  return `${spawnerEmoji(guild, type)} ${type.label} **${formatMillions(quoted.value)}** each`;
+}
+
+/** The prices a ticket lists for its side of the trade. */
+function ticketLines(guild, settings, mode) {
+  return SPAWNER_TYPES.map((type) => ticketLine(guild, settings, type, mode)).filter(Boolean);
+}
+
 function section(title, lines, empty = '— no prices listed yet') {
   return `**${title}**\n${lines.length ? lines.join('\n') : empty}`;
 }
@@ -331,7 +362,7 @@ async function ensurePanel(guild, settings, store, channel) {
 
 function ticketIntro({ user, mode, guild, settings, channelId, order = null }) {
   const buying = mode === 'buy';
-  const prices = pricedLines(guild, settings, mode);
+  const prices = ticketLines(guild, settings, mode);
   const lines = prices.length ? prices.join('\n') : '— no prices listed yet';
 
   const orderLines = order
@@ -422,56 +453,65 @@ function priceChangePayload(guild, ticket, { type, mode, unit, total, previousTo
 }
 
 /**
- * Tells every open ticket that ordered this spawner on this side about the new
- * price, pinging the buyer/seller and showing what their order now costs.
- * Returns the tickets it reached. Tickets for other spawners are untouched.
+ * Tells every open ticket that ordered this spawner about the new price,
+ * pinging the buyer/seller and showing what their order now costs. Only
+ * tickets whose quoted price actually moved are told, so a ticket opened after
+ * the change is left alone. Returns the tickets it reached. Tickets for other
+ * spawners are untouched.
  */
-async function notifyPriceChange({ guild, settings, store, key, mode }) {
+async function notifyPriceChange({ guild, settings, store, key }) {
   const type = spawnerByKey(key);
-  const price = type ? validatePrice(pricesFor(settings, mode)[key]) : { ok: false };
-  if (!type || !price.ok) return [];
+  if (!type) return [];
 
-  const unit = formatMillions(price.value);
   const notified = [];
 
-  for (const [channelId, ticket] of ordersFor(store, guild.id, key, mode)) {
-    const channel =
-      guild.channels.cache.get(channelId) ??
-      (await guild.channels.fetch(channelId).catch(() => null));
-    if (!channel?.isTextBased()) continue;
+  for (const mode of ['buy', 'sell']) {
+    const quoted = ticketPrice(settings, key, mode);
+    if (!quoted.ok) continue;
 
-    const total = formatMillions(price.value * ticket.order.quantity);
-    const previousTotal = ticket.order.total ?? null;
+    const unit = formatMillions(quoted.value);
 
-    const sent = await channel
-      .send({
-        content: `<@${ticket.userId}>`,
-        ...priceChangePayload(guild, ticket, { type, mode, unit, total, previousTotal }),
-      })
-      .catch((err) => {
-        console.error(`[spawners] Could not warn ticket ${channelId}:`, err.message);
-        return null;
+    for (const [channelId, ticket] of ordersFor(store, guild.id, key, mode)) {
+      if (ticket.order.unitPrice === unit) continue;
+
+      const channel =
+        guild.channels.cache.get(channelId) ??
+        (await guild.channels.fetch(channelId).catch(() => null));
+      if (!channel?.isTextBased()) continue;
+
+      const total = formatMillions(quoted.value * ticket.order.quantity);
+      const previousTotal = ticket.order.total ?? null;
+
+      const sent = await channel
+        .send({
+          content: `<@${ticket.userId}>`,
+          ...priceChangePayload(guild, ticket, { type, mode, unit, total, previousTotal }),
+        })
+        .catch((err) => {
+          console.error(`[spawners] Could not warn ticket ${channelId}:`, err.message);
+          return null;
+        });
+      if (!sent) continue;
+
+      store.updateTicket(channelId, {
+        order: { ...ticket.order, unitPrice: unit, total },
       });
-    if (!sent) continue;
-
-    store.updateTicket(channelId, {
-      order: { ...ticket.order, unitPrice: unit, total },
-    });
-    notified.push({ channelId, userId: ticket.userId, total });
+      notified.push({ channelId, userId: ticket.userId, total });
+    }
   }
 
   return notified;
 }
 
-/** Spawners with a price in this mode, as select options. */
+/** Spawners with a price on this side, at the price the member is quoted. */
 function pricedOptions(guild, settings, mode) {
   const options = [];
   for (const type of SPAWNER_TYPES) {
-    const price = formatPrice(pricesFor(settings, mode)[type.key]);
-    if (!price) continue;
+    const quoted = ticketPrice(settings, type.key, mode);
+    if (!quoted.ok) continue;
     options.push(
       new StringSelectMenuOptionBuilder()
-        .setLabel(`${type.label} — ${price} each`)
+        .setLabel(`${type.label} — ${formatMillions(quoted.value)} each`)
         .setValue(type.key),
     );
   }
@@ -530,7 +570,8 @@ async function handleSelect(interaction, { store }) {
 
   const type = spawnerByKey(interaction.values?.[0]);
   const settings = store.guild(interaction.guild.id);
-  const price = type ? formatPrice(pricesFor(settings, mode)[type.key]) : null;
+  const quoted = type ? ticketPrice(settings, type.key, mode) : { ok: false };
+  const price = quoted.ok ? formatMillions(quoted.value) : null;
 
   if (!type || !price) {
     await interaction.reply({
@@ -572,7 +613,7 @@ async function handleModal(interaction, { store }) {
   const guild = interaction.guild;
   const settings = store.guild(guild.id);
   const type = spawnerByKey(key);
-  const unit = type ? validatePrice(pricesFor(settings, mode)[type.key]) : { ok: false };
+  const unit = type ? ticketPrice(settings, type.key, mode) : { ok: false };
 
   if (!type || !unit.ok) {
     await interaction.reply({
@@ -760,5 +801,7 @@ module.exports = {
   storedPanel,
   titleEmoji,
   ticketIntro,
+  ticketLines,
+  ticketPrice,
   validatePrice,
 };
