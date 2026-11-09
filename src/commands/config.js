@@ -6,7 +6,7 @@ const {
   ChannelType,
   MessageFlags,
 } = require('discord.js');
-const { successEmbed, errorEmbed, COLORS, embed } = require('../lib/helpers');
+const { successEmbed, errorEmbed, COLORS, embed, iconsFor } = require('../lib/helpers');
 const { parseChannelLink } = require('../lib/links');
 
 const TEXT_CHANNELS = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -211,6 +211,7 @@ const data = [
 async function execute(interaction, { store }) {
   const guild = interaction.guild;
   const settings = store.guild(guild.id);
+  const e = iconsFor(guild);
 
   if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
     await interaction.reply({
@@ -224,20 +225,20 @@ async function execute(interaction, { store }) {
     const list = (value) => (value ? `<#${value}>` : '—');
     const role = (value) => (value ? `<@&${value}>` : '—');
     const view = embed({
-      title: 'Server settings',
+      title: `${e('gear')} Server settings`,
       description: 'Change values with `/config set`.',
       color: COLORS.brand,
       fields: [
-        { name: 'Staff role', value: role(settings.staffRoleId), inline: true },
-        { name: 'Log channel', value: list(settings.logChannelId), inline: true },
-        { name: 'Transcript channel', value: list(settings.transcriptChannelId), inline: true },
-        { name: 'Ticket category', value: list(settings.ticketCategoryId), inline: true },
-        { name: 'Application review channel', value: list(settings.applications.reviewChannelId), inline: true },
+        { name: `${e('staff')} Staff role`, value: role(settings.staffRoleId), inline: true },
+        { name: `${e('log')} Log channel`, value: list(settings.logChannelId), inline: true },
+        { name: `${e('file')} Transcript channel`, value: list(settings.transcriptChannelId), inline: true },
+        { name: `${e('ticket')} Ticket category`, value: list(settings.ticketCategoryId), inline: true },
+        { name: `${e('app')} Application review`, value: list(settings.applications.reviewChannelId), inline: true },
         { name: 'Application accept role', value: role(settings.applications.acceptRoleId), inline: true },
         { name: 'Application questions', value: `${settings.applications.questions.length}`, inline: true },
         { name: 'Applications open', value: settings.applications.open ? 'Yes' : 'No', inline: true },
-        { name: 'LOA role', value: role(settings.activity.loaRoleId), inline: true },
-        { name: 'Vouch channel', value: list(settings.vouchChannelId), inline: true },
+        { name: `${e('palm')} LOA role`, value: role(settings.activity.loaRoleId), inline: true },
+        { name: `${e('vouch')} Vouch channel`, value: list(settings.vouchChannelId), inline: true },
         { name: 'Staff vouch channel', value: list(settings.staffVouchChannelId), inline: true },
         { name: 'Extra vouch admin role', value: role(settings.vouchAdminRoleId), inline: true },
         {
@@ -256,7 +257,7 @@ async function execute(interaction, { store }) {
           inline: true,
         },
         {
-          name: 'Automatic activity checks',
+          name: `${e('clock')} Automatic activity checks`,
           value: settings.activity.enabled ? 'Enabled — `/activity status`' : 'Disabled',
           inline: true,
         },
@@ -356,7 +357,7 @@ async function execute(interaction, { store }) {
     await interaction.reply({
       embeds: [
         embed({
-          title: 'Settings partly updated',
+          title: `${e('warn')} Settings partly updated`,
           description: [...updates, '', '⚠️ **Not changed**', ...problems].join('\n'),
           color: COLORS.warning,
         }),

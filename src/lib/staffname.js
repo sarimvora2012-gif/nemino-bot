@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, infoEmbed, COLORS } = require('./helpers');
+const { embed, errorEmbed, infoEmbed, COLORS, icon } = require('./helpers');
 const { toPlain, toSmallCaps } = require('./smallcaps');
 
 const MAX_NICKNAME = 32;
@@ -171,7 +171,7 @@ function summaryEmbed(guild, result) {
   }
 
   return embed({
-    title: 'Staff names rebuilt',
+    title: `${icon(guild, 'staff')} Staff names rebuilt`,
     description: lines.join('\n'),
     color: result.failed.length ? COLORS.warning : COLORS.success,
     footer: guild?.name,

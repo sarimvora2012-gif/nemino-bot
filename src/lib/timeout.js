@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, successEmbed, sendLog, safeDM, COLORS, timestamp, relative } = require('./helpers');
+const { embed, errorEmbed, successEmbed, sendLog, safeDM, COLORS, timestamp, relative, icon } = require('./helpers');
 
 const PREFIX = '!to';
 const MAX_TIMEOUT_MS = 28 * 24 * 60 * 60 * 1000; // Discord's hard limit
@@ -151,7 +151,7 @@ async function handleMessage(message, { store }) {
 
   await sendLog(guild, settings, [
     embed({
-      title: '⏳ Member timed out',
+      title: `${icon(message.guild, 'clock')} Member timed out`,
       description: [
         `**Member:** ${target}`,
         `**Moderator:** ${message.author}`,

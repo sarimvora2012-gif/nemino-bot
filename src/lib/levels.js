@@ -1,6 +1,6 @@
 'use strict';
 
-const { COLORS } = require('./helpers');
+const { COLORS, iconsFor } = require('./helpers');
 const { toSmallCaps } = require('./smallcaps');
 const v2 = require('./v2');
 
@@ -97,6 +97,7 @@ function scheduleSave(store) {
 function rankCard(guild, settings, member) {
   const record = recordFor(settings, member.id);
   const { level, xpIntoLevel, xpForNext, totalXp } = levelFromXp(record.xp);
+  const e = iconsFor(guild);
   const position = positionOf(settings, member.id);
   const percent = xpForNext ? (xpIntoLevel / xpForNext) * 100 : 100;
 
@@ -106,12 +107,12 @@ function rankCard(guild, settings, member) {
     title: `LEVEL ${level}`,
     subtitle: `${member.user.username}${position ? ` · rank #${position}` : ''}`,
     stats: [
-      { emoji: '✨', label: 'XP', value: `${totalXp.toLocaleString('en-US')}` },
+      { emoji: e('spark'), label: 'XP', value: `${totalXp.toLocaleString('en-US')}` },
       { emoji: '💬', label: 'Messages', value: `${record.messages.toLocaleString('en-US')}` },
     ],
     progress: {
       percent,
-      emoji: '📈',
+      emoji: e('up'),
       label: `${xpIntoLevel.toLocaleString('en-US')}/${xpForNext.toLocaleString('en-US')} XP · ${(xpForNext - xpIntoLevel).toLocaleString('en-US')} to go`,
     },
     thumbnail: member.displayAvatarURL?.({ size: 256 }) ?? member.user.displayAvatarURL?.(),
@@ -120,14 +121,15 @@ function rankCard(guild, settings, member) {
 }
 
 function levelUpCard(guild, member, level, xpIntoLevel, xpForNext) {
+  const e = iconsFor(guild);
   return v2.card({
     accent: COLORS.success,
     kicker: toSmallCaps('level up'),
-    title: `🎉 LEVEL ${level}`,
+    title: `${e('spark')} LEVEL ${level}`,
     subtitle: `${member}`,
     progress: {
       percent: xpForNext ? (xpIntoLevel / xpForNext) * 100 : 0,
-      emoji: '📈',
+      emoji: e('up'),
       label: `${xpIntoLevel}/${xpForNext} XP to level ${level + 1}`,
     },
     thumbnail: member.displayAvatarURL?.({ size: 256 }),

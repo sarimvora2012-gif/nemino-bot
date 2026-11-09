@@ -1,7 +1,7 @@
 'use strict';
 
 const { SlashCommandBuilder, version: djsVersion, MessageFlags } = require('discord.js');
-const { embed, infoEmbed, COLORS } = require('../lib/helpers');
+const { embed, infoEmbed, COLORS, icon, iconsFor } = require('../lib/helpers');
 
 const data = [
   new SlashCommandBuilder().setName('help').setDescription('Show everything this bot can do'),
@@ -24,13 +24,14 @@ async function execute(interaction, { client }) {
     return;
   }
 
+  const e = iconsFor(interaction.guild);
   const help = embed({
-    title: 'Server bot commands',
+    title: `${icon(interaction.guild, 'list')} Server bot commands`,
     description: 'Tickets, applications, giveaways, activity checks, LOA, suggestions, automod, promotions and strikes. Staff commands require the configured staff role or **Manage Server**.',
     color: COLORS.brand,
     fields: [
       {
-        name: '🎫 Tickets',
+        name: `${e('ticket')} Tickets`,
         value: [
           '`/ticket panel` — post the open-a-ticket button',
           '`/ticket claim` — claim the current ticket',
@@ -40,7 +41,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '📝 Applications',
+        name: `${e('app')} Applications`,
         value: [
           '`/application panel` — post the Apply button',
           '`/application questions add question:<text>` — add a question',
@@ -54,7 +55,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '🎁 Giveaways',
+        name: `${e('gift')} Giveaways`,
         value: [
           '`/giveaway create prize:<text> duration:<1d> claimtime:<24h>` — start a giveaway',
           'Members click **Enter Giveaway** to join',
@@ -64,7 +65,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '✅ Activity checks (admin only)',
+        name: `${e('chart')} Activity checks (admin only)`,
         value: [
           '**Manage Server required for every `/activity` command.**',
           '`/activity start duration:48h [channel]` — post a check now',
@@ -76,7 +77,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '🌴 Leave of absence',
+        name: `${e('palm')} Leave of absence`,
         value: [
           '`!loasetup` — post the Request LOA panel (staff only)',
           'Members click **Request LOA** and give a duration and reason',
@@ -85,7 +86,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '🎟️ Vouches',
+        name: `${e('vouch')} Vouches`,
         value: [
           'Post `:vouch @user` in a vouch channel',
           'Each vouch is counted once and their nickname becomes `Name (count)`',
@@ -97,7 +98,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '📈 Levels',
+        name: `${e('up')} Levels`,
         value: [
           '`/level rank [user]` — level, rank, XP and progress',
           '`/level top` — every member’s XP, ten per page',
@@ -110,7 +111,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '💡 Suggestions',
+        name: `${e('idea')} Suggestions`,
         value: [
           '`/suggestion suggestion:<text>` — post a suggestion (every member can use this)',
           'Suggestions are sent to the suggestion channel',
@@ -119,7 +120,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '🦴 Spawner prices',
+        name: `${e('money')} Spawner prices`,
         value: [
           '`/setspawnerprice spawner:<type> type:<Buying|Selling> price:<13.5>` — spawner perms role only',
           'Decimals are allowed, up to 2 places — `13`, `12.5`, `0.75`',
@@ -140,7 +141,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '🛡️ AutoMod',
+        name: `${e('shield')} AutoMod`,
         value: [
           'Blocks server invites, scam and phishing links',
           'Blocks unapproved links and advertising from members',
@@ -150,7 +151,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '⏳ Timeouts',
+        name: `${e('clock')} Timeouts`,
         value: [
           '`!to @user 10m [reason]` — time a member out',
           'Times accept `10m`, `1h`, `2d` or `1w` (max 28 days)',
@@ -158,7 +159,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '🧹 Purge',
+        name: `${e('broom')} Purge`,
         value: [
           '`!purge 25` — delete the last 25 messages',
           'Staff can remove up to **50** per command',
@@ -167,7 +168,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '📈 Promotions & demotions (admin only)',
+        name: `${e('staff')} Promotions & demotions (admin only)`,
         value: [
           '**Manage Server required for `/promote` and `/demote`.**',
           '`/promote user:@user role:@role [reason]` — give that role',
@@ -178,7 +179,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '🛡️ Kick protection (admin only)',
+        name: `${e('shield')} Kick protection (admin only)`,
         value: [
           '**Manage Server required for `/protect`.**',
           '`/protect add user:@member` — only admins can kick that member',
@@ -188,7 +189,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '⚠️ Strikes',
+        name: `${e('warn')} Strikes`,
         value: [
           '`!strike list @user` — see active and voided strikes (staff)',
           '`!strike @user reason` — issue a strike (admin only)',
@@ -198,7 +199,7 @@ async function execute(interaction, { client }) {
         ].join('\n'),
       },
       {
-        name: '⚙️ Setup',
+        name: `${e('gear')} Setup`,
         value: [
           '`!honeypot` — turn the current channel into a kick-on-message honeypot (admin only)',
           'Moderators and above are immune — their message is removed and they are told privately',

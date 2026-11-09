@@ -20,6 +20,7 @@ const {
   COLORS,
 } = require('../lib/helpers');
 const activity = require('../lib/activity');
+const { icon } = require('../lib/emojis');
 const { createTicketChannel } = require('./ticket');
 
 /** The category giveaway claim tickets are created in. */
@@ -392,7 +393,7 @@ async function execute(interaction, { store }) {
 
   await sendLog(guild, settings, [
     embed({
-      title: 'Giveaway started',
+      title: `${icon(interaction.guild, 'gift')} Giveaway started`,
       color: COLORS.brand,
       fields: [
         { name: 'Giveaway', value: `${giveaway.id} · ${truncate(prize, 200)}`, inline: true },

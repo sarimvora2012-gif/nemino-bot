@@ -25,7 +25,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
 } = require('discord.js');
-const { embed, errorEmbed, successEmbed, infoEmbed, COLORS, isStaff } = require('./helpers');
+const { embed, errorEmbed, successEmbed, infoEmbed, COLORS, isStaff, icon } = require('./helpers');
 const { toPlain, toSmallCaps } = require('./smallcaps');
 const v2 = require('./v2');
 const { createTicketChannel } = require('../commands/ticket');
@@ -410,7 +410,7 @@ function priceChangePayload(guild, ticket, { type, mode, unit, total, previousTo
   return {
     embeds: [
       embed({
-        title: '💸 spawner price update',
+        title: `${icon(guild, 'money')} spawner price update`,
         description: lines.join('\n'),
         color: ACCENT,
         footer: 'Spawner prices',

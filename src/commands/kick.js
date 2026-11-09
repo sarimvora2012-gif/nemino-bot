@@ -10,6 +10,7 @@ const {
   COLORS,
 } = require('../lib/helpers');
 const { evaluateKick, isProtected } = require('../lib/protection');
+const { icon } = require('../lib/emojis');
 
 const data = [
   new SlashCommandBuilder()
@@ -86,7 +87,7 @@ async function execute(interaction, { store }) {
   }
 
   const result = embed({
-    title: '👢 Member kicked',
+    title: `${icon(interaction.guild, 'no')} Member kicked`,
     color: COLORS.warning,
     fields: [
       { name: 'Member', value: `${user}`, inline: true },

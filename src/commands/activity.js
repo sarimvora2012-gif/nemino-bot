@@ -14,6 +14,7 @@ const {
   COLORS,
 } = require('../lib/helpers');
 const activity = require('../lib/activity');
+const { icon } = require('../lib/emojis');
 const scoreboard = require('../lib/scoreboard');
 
 const data = [
@@ -210,7 +211,7 @@ async function execute(interaction, ctx) {
     await interaction.editReply({
       embeds: [
         embed({
-          title: 'Activity check status',
+          title: `${icon(guild, 'chart')} Activity check status`,
           description: current
             ? [
                 `A check is running in <#${current.channelId}>.`,

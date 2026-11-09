@@ -1,7 +1,7 @@
 'use strict';
 
 const { SlashCommandBuilder, ChannelType, MessageFlags } = require('discord.js');
-const { embed, successEmbed, errorEmbed, COLORS } = require('../lib/helpers');
+const { embed, successEmbed, errorEmbed, COLORS, icon } = require('../lib/helpers');
 const { isCoOwnerRole, isOwnerOrCoOwner } = require('../lib/roles');
 const levels = require('../lib/levels');
 const scoreboard = require('../lib/scoreboard');
@@ -78,7 +78,7 @@ function settingsCard(guild, settings) {
   const config = settings.levels;
   const numbers = (value) => `${value}`;
   return embed({
-    title: '📈 Level settings',
+    title: `${icon(guild, 'gear')} Level settings`,
     color: COLORS.brand,
     fields: [
       { name: 'XP earning', value: config.enabled ? 'On' : 'Off', inline: true },

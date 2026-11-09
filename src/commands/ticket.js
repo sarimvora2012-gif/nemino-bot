@@ -28,6 +28,7 @@ const {
   COLORS,
 } = require('../lib/helpers');
 const { toSmallCaps } = require('../lib/smallcaps');
+const { icon } = require('../lib/emojis');
 
 const data = [
   new SlashCommandBuilder()
@@ -86,7 +87,7 @@ async function execute(interaction, { store }) {
     }
     const extra = interaction.options.getString('message');
     const panel = embed({
-      title: 'Need help?',
+      title: `${icon(guild, 'ticket')} Need help?`,
       description: [
         'Click the button below to open a private ticket with our staff team.',
         '',
@@ -206,7 +207,7 @@ async function execute(interaction, { store }) {
     });
     await sendLog(guild, settings, [
       embed({
-        title: 'Ticket claimed',
+        title: `${icon(guild, 'ticket')} Ticket claimed`,
         color: COLORS.brand,
         fields: [
           { name: 'Ticket', value: `${interaction.channel}`, inline: true },
@@ -516,7 +517,7 @@ async function openTicket(interaction, { store }) {
 
   await sendLog(guild, settings, [
     embed({
-      title: 'Ticket opened',
+      title: `${icon(interaction.guild, 'ticket')} Ticket opened`,
       color: COLORS.success,
       fields: [
         { name: 'Member', value: `${interaction.user}`, inline: true },
@@ -720,7 +721,7 @@ async function closeTicket(client, channel, ticket, settings, { closedBy, reason
   // The channel is deleted first, so the ticket is only recorded as closed once
   // it is really gone. A failed delete stays "open" and can be retried.
   const notice = embed({
-    title: 'Ticket closed',
+    title: `${icon(channel.guild, 'ticket')} Ticket closed`,
     description: transcriptError
       ? `Closed by ${closedBy}. The channel will be deleted in a few seconds.`
       : `Closed by ${closedBy}.\n**Reason:** ${reason}\n\nA transcript has been saved to the staff logs.`,

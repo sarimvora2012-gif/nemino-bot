@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, COLORS } = require('./helpers');
+const { embed, errorEmbed, COLORS, icon } = require('./helpers');
 const { fontKey, toPlain, toSmallCaps } = require('./smallcaps');
 
 const PREFIX = '!stafffont';
@@ -137,7 +137,7 @@ function resultEmbed({ renamed, failed }, guild, readable = false) {
   }
 
   return embed({
-    title: '🔤 Staff role font',
+    title: `${icon(guild, 'staff')} Staff role font`,
     description: lines.join('\n'),
     color: failed.length ? COLORS.warning : COLORS.success,
     footer: guild.name,

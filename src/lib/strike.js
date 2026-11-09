@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, isStaff, safeDM, truncate, COLORS } = require('./helpers');
+const { embed, errorEmbed, isStaff, safeDM, truncate, COLORS, icon } = require('./helpers');
 const v2 = require('./v2');
 const { toSmallCaps } = require('./smallcaps');
 
@@ -120,7 +120,7 @@ function issuedCard({ member, strike, activeCount, reason }) {
   return v2.card({
     accent: COLORS.danger,
     kicker: toSmallCaps('staff strikes'),
-    title: '⚠️ STRIKE ISSUED',
+    title: `${icon(member.guild, 'warn')} STRIKE ISSUED`,
     sections: [
       `👤 **${member}** · 🪪 **${strike.id}** · 📊 **${activeCount}** active · 📝 ${truncate(reason, 400)}`,
     ],
@@ -132,7 +132,7 @@ function voidedCard({ member, strikeId, remaining, reason }) {
   return v2.card({
     accent: COLORS.success,
     kicker: toSmallCaps('staff strikes'),
-    title: '✅ STRIKE VOIDED',
+    title: `${icon(member.guild, 'ok')} STRIKE VOIDED`,
     sections: [
       `👤 **${member}** · 🪪 **${strikeId}** · 📊 **${remaining}** active left · 📝 ${truncate(reason, 400)}`,
     ],

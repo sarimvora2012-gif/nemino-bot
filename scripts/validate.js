@@ -1866,7 +1866,7 @@ test('!staffname rebuilds names and refuses non-admins', async () => {
   );
   assert.equal(staff.renamed, 'ᴍᴏᴅ Slash');
   assert.equal(edits.length, 1, 'the progress message becomes the summary');
-  assert.equal(edits[0].embeds[0].data.title, 'Staff names rebuilt');
+  assert.match(edits[0].embeds[0].data.title, /Staff names rebuilt$/);
   assert.match(edits[0].embeds[0].data.description, /Staff renamed:\*\* 1/);
 
   settings.staffRoleId = null;

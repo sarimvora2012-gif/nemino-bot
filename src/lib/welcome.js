@@ -1,6 +1,6 @@
 'use strict';
 
-const { timestamp } = require('./helpers');
+const { timestamp, icon } = require('./helpers');
 const v2 = require('./v2');
 const { toSmallCaps } = require('./smallcaps');
 
@@ -52,7 +52,7 @@ function welcomeCard(member, guild, memberCount) {
   return v2.card({
     accent: ACCENT,
     kicker: toSmallCaps('welcome'),
-    title: `👋 WELCOME TO ${toSmallCaps(guild.name, 60)}`,
+    title: `${icon(guild, 'spark')} WELCOME TO ${toSmallCaps(guild.name, 60)}`,
     subtitle: `member #${memberCount}`,
     description: grid,
     sections: [`> ✨ Enjoy your stay!`, startHere],

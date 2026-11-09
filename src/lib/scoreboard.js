@@ -1,7 +1,7 @@
 'use strict';
 
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
-const { COLORS, errorEmbed, trophyEmoji } = require('./helpers');
+const { COLORS, errorEmbed, trophyEmoji, iconsFor } = require('./helpers');
 const { toSmallCaps } = require('./smallcaps');
 const levels = require('./levels');
 const v2 = require('./v2');
@@ -273,8 +273,7 @@ function detailFor(entry, type) {
   return `**${entry.value} pt${entry.value === 1 ? '' : 's'}** · ${formatVoice(entry.seconds)} in voice`;
 }
 
-function lineFor(entry, place, type) {
-  const medals = ['🥇', '🥈', '🥉'];
+function lineFor(entry, place, type, medals = ['🥇', '🥈', '🥉']) {
   const placeLabel = medals[place - 1] ?? `\`#${place}\``;
   return `${placeLabel} <@${entry.id}> · ${detailFor(entry, type)}`;
 }
@@ -364,9 +363,11 @@ function card(guild, settings, { type = 'levels', page = 1, viewerId = null } = 
   const safePage = Math.min(Math.max(1, Math.floor(Number(page) || 1)), pageCount);
   const start = (safePage - 1) * PAGE_SIZE;
   const slice = all.slice(start, start + PAGE_SIZE);
+  const e = iconsFor(guild);
+  const medals = [e('m1'), e('m2'), e('m3')];
 
   const description = slice.length
-    ? slice.map((entry, index) => lineFor(entry, start + index + 1, safeType)).join('\n')
+    ? slice.map((entry, index) => lineFor(entry, start + index + 1, safeType, medals)).join('\n')
     : '> 🌱 Nothing tracked yet — start chatting or hop in voice!';
   const mine = viewerLine(all, safeType, viewerId, start);
 
@@ -402,6 +403,7 @@ function memberCard(guild, settings, member) {
   );
   const points = voicePoints(voiceSeconds);
   const messages = messageCountFor(settings, userId);
+  const e = iconsFor(guild);
 
   return v2.card({
     accent: COLORS.brand,
@@ -410,7 +412,7 @@ function memberCard(guild, settings, member) {
     subtitle: member?.user?.username ?? 'Member',
     stats: [
       {
-        emoji: '✨',
+        emoji: e('spark'),
         label: 'XP',
         value: `${totalXp.toLocaleString('en-US')} · ${placeLabel(positionOn(settings, 'levels', userId))}`,
       },
@@ -431,7 +433,7 @@ function memberCard(guild, settings, member) {
     ],
     progress: {
       percent: xpForNext ? (xpIntoLevel / xpForNext) * 100 : 0,
-      emoji: '📈',
+      emoji: e('up'),
       label: `${xpIntoLevel.toLocaleString('en-US')}/${xpForNext.toLocaleString(
         'en-US',
       )} XP to level ${level + 1}`,

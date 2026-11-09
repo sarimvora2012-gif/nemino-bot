@@ -9,7 +9,7 @@ const {
   MessageFlags,
   PermissionFlagsBits,
 } = require('discord.js');
-const { embed, errorEmbed, COLORS, canManageRole } = require('./helpers');
+const { embed, errorEmbed, COLORS, canManageRole, icon } = require('./helpers');
 const { fontKey } = require('./smallcaps');
 
 const PREFIX = '!roleicons';
@@ -195,7 +195,7 @@ function planLines({ planned, skipped, blocked }) {
 
 function previewCard(guild, plan) {
   return embed({
-    title: '🎨 Staff role icons',
+    title: `${icon(guild, 'staff')} Staff role icons`,
     description: [
       'These are the icons I would set on your staff roles.',
       'The bundled custom icon is used first, then your own server emoji art, then the plain emoji.',
@@ -284,7 +284,7 @@ function resultCard(guild, { done, failed }) {
   }
 
   return embed({
-    title: '🎨 Staff role icons',
+    title: `${icon(guild, 'staff')} Staff role icons`,
     description: done.length
       ? 'Icons set. Re-run `!roleicons` any time you upload new emoji art.'
       : 'Nothing was changed.',

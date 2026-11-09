@@ -25,6 +25,8 @@ const {
   COLORS,
 } = require('./helpers');
 
+const { icon } = require('./emojis');
+
 const LOA_REQUEST_CHANNEL_ID = '1563541405706485850';
 const LOA_ROLE_ID = '1539905285789982781';
 const PREFIX = '!loasetup';
@@ -337,7 +339,7 @@ async function acceptRequest(interaction, request, { store }) {
 
   await sendLog(guild, settings, [
     embed({
-      title: 'LOA request accepted',
+      title: `${icon(interaction.guild, 'ok')} LOA request accepted`,
       color: COLORS.success,
       fields: [
         { name: 'Member', value: `${member.user}`, inline: true },
@@ -473,7 +475,7 @@ async function handleModal(interaction, { store }) {
       await safeDM(applicant, {
         embeds: [
           embed({
-            title: 'Your LOA request was denied',
+            title: `${icon(interaction.guild, 'no')} Your LOA request was denied`,
             description: [
               `**Server:** ${interaction.guild.name}`,
               `**Request:** ${request.id}`,
@@ -489,7 +491,7 @@ async function handleModal(interaction, { store }) {
 
     await sendLog(interaction.guild, settings, [
       embed({
-        title: 'LOA request denied',
+        title: `${icon(interaction.guild, 'no')} LOA request denied`,
         color: COLORS.danger,
         fields: [
           { name: 'Member', value: `<@${request.userId}> (${request.userId})`, inline: true },

@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Nemino · custom emoji pass</title>
+<style>
+  :root {
+    --page: #1a1b1e;
+    --card: #2b2d31;
+    --text: #f2f3f5;
+    --muted: #b5bac1;
+    --line: #3f4147;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      radial-gradient(900px 420px at 8% -12%, rgba(88, 101, 242, 0.20), transparent 62%),
+      radial-gradient(760px 360px at 100% 0%, rgba(87, 242, 135, 0.09), transparent 55%),
+      var(--page);
+    color: var(--text);
+    font-family: "gg sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    width: 1280px;
+    padding: 34px 22px 14px;
+  }
+
+  .board-head {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
+    padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); margin-bottom: 12px;
+  }
+  .brand { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8ea1e1; font-weight: 700; margin-bottom: 5px; }
+  h1.board-title { margin: 0; font-size: 23px; line-height: 1.1; letter-spacing: -0.01em; font-weight: 800; }
+  h1.board-title span { color: #b5bac1; font-weight: 500; }
+  .board-sub { margin-top: 5px; color: var(--muted); font-size: 11.5px; max-width: 900px; }
+  .board-sub code { font-size: 10.5px; color: #c3c8d0; }
+  .board-meta { text-align: right; font-size: 10px; color: var(--muted); line-height: 1.55; white-space: nowrap; }
+  .board-meta b { color: var(--text); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 10px; align-items: start; }
+  .slot-label { font-size: 8.5px; letter-spacing: 0.09em; text-transform: uppercase; color: #7d818a; margin: 0 0 4px 3px; font-weight: 700; }
+
+  .card {
+    position: relative; background: var(--card); border-radius: 6px;
+    padding: 9px 11px 8px 13px; overflow: hidden; min-height: 148px;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.25);
+  }
+  .card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent, #5865f2); }
+  .kicker { font-size: 9.5px; line-height: 1.4; color: var(--muted); font-weight: 500; }
+  .card h2 { margin: 2px 0 4px; font-size: 15px; line-height: 1.15; font-weight: 800; letter-spacing: -0.005em; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .subtitle { font-size: 10px; color: var(--muted); margin: -2px 0 4px; }
+  .thumb {
+    position: absolute; top: 9px; right: 11px;
+    width: 34px; height: 34px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; color: #101013;
+    background: linear-gradient(145deg, #c9d4ff, #8ea1e1);
+  }
+  .quote {
+    margin: 3px 0 6px; padding: 4px 8px; border-left: 3px solid #4e5058;
+    background: rgba(255, 255, 255, 0.03); border-radius: 0 3px 3px 0;
+    font-size: 10.5px; color: #e6e7ea; line-height: 1.35;
+  }
+  .divider { height: 1px; background: var(--line); margin: 6px 0; }
+  .rows { display: flex; flex-direction: column; gap: 2px; }
+  .row { font-size: 10.5px; line-height: 1.35; color: #e6e7ea; display: flex; gap: 5px; align-items: baseline; }
+  .row .lbl { color: #b5bac1; }
+  .row b { color: #f2f3f5; font-weight: 700; }
+  .row .sep { color: #8b8f98; }
+  .row .v { color: #d6d8dc; }
+  .row .v.dim { color: #a9adb6; }
+  .foot { font-size: 9.5px; color: var(--muted); margin-top: 6px; }
+  .foot .sig { color: #7f848d; }
+  .ping { display: inline-block; background: rgba(88, 101, 242, 0.22); color: #c3caff; border-radius: 4px; padding: 0 5px; font-weight: 700; font-size: 10px; }
+  .mention { background: rgba(88, 101, 242, 0.22); color: #c9d0ff; border-radius: 4px; padding: 0 4px; font-weight: 600; }
+  .role { background: rgba(87, 242, 135, 0.16); color: #b6f7cd; border-radius: 4px; padding: 0 4px; font-weight: 600; }
+  .chan { color: #c9d0ff; }
+  .miss { color: #ff9ea1; font-weight: 800; }
+
+  .embedbody { font-size: 10.5px; color: #e6e7ea; line-height: 1.4; }
+  .embedbody p { margin: 0 0 3px; }
+  .embedbody .small { color: #a9adb6; font-size: 9.5px; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin-top: 6px; }
+  .field { font-size: 9.5px; line-height: 1.3; }
+  .field .fn { display: flex; align-items: center; gap: 4px; color: #d3d6db; font-weight: 700; }
+  .field .fv { color: #b5bac1; }
+  .panel-row { display: flex; gap: 6px; margin-top: 8px; }
+  .btn { font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 4px; background: #5865f2; color: #fff; display: inline-flex; align-items: center; gap: 4px; }
+  .btn.sec { background: #4e5058; }
+
+  .bar { margin-top: 5px; }
+  .bar .track { height: 6px; border-radius: 3px; background: #1e1f22; overflow: hidden; }
+  .bar .fill { height: 100%; width: 56%; background: linear-gradient(90deg, #57f287, #3ba55d); }
+  .bar .cap { font-size: 9px; color: #b5bac1; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+
+  /* the real pack art */
+  .ce { width: 14px; height: 14px; display: inline-block; vertical-align: -2.5px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
+  .kicker .ce { width: 12px; height: 12px; vertical-align: -2px; }
+  h2 .ce { width: 16px; height: 16px; vertical-align: -2px; flex: none; }
+  .row .ce, .field .fn .ce { width: 13px; height: 13px; }
+  .row .gl { width: 13px; flex: none; text-align: center; font-size: 11px; }
+
+  .legend { margin-top: 13px; border-top: 1px solid rgba(255, 255, 255, 0.07); padding-top: 9px; }
+  .legend h3 { margin: 0 0 7px; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: #8ea1e1; }
+  .chips { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+  .chip { background: #24262b; border: 1px solid #34373d; border-radius: 5px; padding: 4px 2px 3px; text-align: center; }
+  .chip .g { height: 20px; display: flex; align-items: center; justify-content: center; }
+  .chip .g .ce { width: 20px; height: 20px; }
+  .chip .n { margin-top: 3px; font-family: "Cascadia Mono", Consolas, monospace; font-size: 9px; letter-spacing: 0.01em; color: #b3b8c1; }
+  .note { margin-top: 7px; font-size: 9.5px; color: #8b9099; }
+  .note code { color: #b3b8c1; }
+</style>
+</head>
+<body>
+
+<div class="board-head">
+  <div>
+    <div class="brand">Nemino &nbsp;·&nbsp; design board</div>
+    <h1 class="board-title">Cards with the custom emoji pack <span>— the real uploaded art, in the real layout</span></h1>
+    <div class="board-sub">
+      Every tile below is one of the 29 PNGs in <code>mockups/emoji/</code>, the same files the bot renders as <code>&lt;:name:id&gt;</code>.
+      Nothing is a built-in Discord glyph. Sample member names, counts and channels stand in for live data.
+    </div>
+  </div>
+  <div class="board-meta">
+    <div><b>9</b> cards</div>
+    <div><b>29</b> emoji slots</div>
+    <div>Components V2 + classic embeds</div>
+  </div>
+</div>
+
+<div class="grid">
+
+  <section>
+    <div class="slot-label">Staff movement · /promote</div>
+    <article class="card" style="--accent:#57f287">
+      <div class="thumb">S</div>
+      <div class="kicker"><img class="ce" src="/emoji/staff.png" alt="staff" /> ꜱᴛᴀꜰꜰ ᴍᴏᴠᴇᴍᴇɴᴛ</div>
+      <h2><img class="ce" src="/emoji/up.png" alt="up" /> PROMOTION</h2>
+      <div class="quote"><img class="ce" src="/emoji/spark.png" alt="spark" /> <b>@seraph</b> has been promoted to <span class="role">ᴍᴏᴅ</span>!</div>
+      <div class="rows">
+        <div class="row"><img class="ce" src="/emoji/staff.png" alt="" /><span class="lbl">Member</span><span class="sep">·</span><span class="mention">@seraph</span></div>
+        <div class="row"><img class="ce" src="/emoji/up.png" alt="" /><span class="lbl">New role</span><span class="sep">·</span><span class="role">ᴍᴏᴅ</span></div>
+        <div class="row"><img class="ce" src="/emoji/shield.png" alt="" /><span class="lbl">Moderator</span><span class="sep">·</span><span class="mention">@nemino</span></div>
+        <div class="row"><img class="ce" src="/emoji/note.png" alt="" /><span class="lbl">Reason</span><span class="sep">·</span><span class="v">clean tickets all month</span></div>
+      </div>
+      <div class="foot">Congratulations, keep it up 💪</div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Staff movement · /demote</div>
+    <article class="card" style="--accent:#fee75c">
+      <div class="thumb">G</div>
+      <div class="kicker"><img class="ce" src="/emoji/staff.png" alt="staff" /> ꜱᴛᴀꜰꜰ ᴍᴏᴠᴇᴍᴇɴᴛ</div>
+      <h2><img class="ce" src="/emoji/down.png" alt="down" /> DEMOTION</h2>
+      <div class="quote"><img class="ce" src="/emoji/swap.png" alt="swap" /> <b>@ghost</b> has been demoted to <span class="role">ʜᴇʟᴘᴇʀ</span>.</div>
+      <div class="rows">
+        <div class="row"><img class="ce" src="/emoji/staff.png" alt="" /><span class="lbl">Member</span><span class="sep">·</span><span class="mention">@ghost</span></div>
+        <div class="row"><img class="ce" src="/emoji/swap.png" alt="" /><span class="lbl">Role change</span><span class="sep">·</span><span class="v">ᴍᴏᴅ → ʜᴇʟᴘᴇʀ</span></div>
+        <div class="row"><img class="ce" src="/emoji/shield.png" alt="" /><span class="lbl">Moderator</span><span class="sep">·</span><span class="mention">@nemino</span></div>
+        <div class="row"><img class="ce" src="/emoji/note.png" alt="" /><span class="lbl">Reason</span><span class="sep">·</span><span class="v">missed the last check</span></div>
+      </div>
+      <div class="foot">Staff movement record</div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Activity check · results</div>
+    <article class="card" style="--accent:#ed4245">
+      <div class="thumb">N</div>
+      <div class="kicker"><img class="ce" src="/emoji/chart.png" alt="chart" /> ᴀᴄᴛɪᴠɪᴛʏ ᴄʜᴇᴄᴋ ʀᴇꜱᴜʟᴛꜱ</div>
+      <h2><img class="ce" src="/emoji/app.png" alt="app" /> MISSED THE CHECK</h2>
+      <div class="embedbody">
+        <p><span class="ping">@High Staff</span> &nbsp;<b class="miss">3</b> active staff did not react before the check closed.</p>
+        <p class="small">-# Names are in #staff-attendance.</p>
+      </div>
+      <div class="rows" style="margin-top:4px">
+        <div class="row"><img class="ce" src="/emoji/ok.png" alt="" /><span class="lbl">Reacted</span><span class="sep">·</span><span class="v">18/24</span></div>
+        <div class="row"><img class="ce" src="/emoji/palm.png" alt="" /><span class="lbl">On LOA</span><span class="sep">·</span><span class="v">3</span></div>
+        <div class="row"><img class="ce" src="/emoji/no.png" alt="" /><span class="lbl">Missed</span><span class="sep">·</span><span class="v"><b class="miss">3</b></span></div>
+      </div>
+      <div class="foot">Activity check</div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Activity check · attendance channel</div>
+    <article class="card" style="--accent:#ed4245">
+      <div class="thumb">N</div>
+      <div class="kicker"><img class="ce" src="/emoji/list.png" alt="list" /> ᴀᴄᴛɪᴠɪᴛʏ ᴄʜᴇᴄᴋ</div>
+      <h2><img class="ce" src="/emoji/no.png" alt="no" /> MISSED THE ACTIVITY CHECK</h2>
+      <div class="embedbody">
+        <p><b class="miss">3</b> active staff did not react before the check closed.</p>
+        <p class="small">-# 24 checked · 3 on LOA</p>
+      </div>
+      <div class="rows" style="margin-top:5px">
+        <div class="row"><span class="v"><span class="mention">@ghost</span> <span class="sep">·</span> <span class="mention">@void</span> <span class="sep">·</span> <span class="mention">@ember</span></span></div>
+      </div>
+      <div class="foot">Activity check</div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Ticket panel · classic embed</div>
+    <article class="card" style="--accent:#5865f2">
+      <h2><img class="ce" src="/emoji/ticket.png" alt="ticket" /> Need help?</h2>
+      <div class="embedbody">
+        <p>Click the button below to open a private ticket with our staff team.</p>
+        <p><b>Before opening a ticket</b></p>
+        <p>• Check the FAQ and announcements for an answer.<br />• Describe your issue clearly once the ticket is open.<br />• Do not open multiple tickets for the same issue.</p>
+      </div>
+      <div class="panel-row"><span class="btn">🎫 Open a ticket</span></div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Configuration · /config show</div>
+    <article class="card" style="--accent:#5865f2">
+      <h2><img class="ce" src="/emoji/gear.png" alt="gear" /> Server settings</h2>
+      <div class="fields">
+        <div class="field"><div class="fn"><img class="ce" src="/emoji/staff.png" alt="" /> Staff role</div><div class="fv">ᴍᴏᴅ</div></div>
+        <div class="field"><div class="fn"><img class="ce" src="/emoji/log.png" alt="" /> Log channel</div><div class="fv">#bot-logs</div></div>
+        <div class="field"><div class="fn"><img class="ce" src="/emoji/file.png" alt="" /> Transcript channel</div><div class="fv">#transcripts</div></div>
+        <div class="field"><div class="fn"><img class="ce" src="/emoji/ticket.png" alt="" /> Ticket category</div><div class="fv">Tickets</div></div>
+        <div class="field"><div class="fn"><img class="ce" src="/emoji/app.png" alt="" /> Application review</div><div class="fv">#app-review</div></div>
+        <div class="field"><div class="fn"><img class="ce" src="/emoji/palm.png" alt="" /> LOA role</div><div class="fv">ʟᴏᴀ</div></div>
+        <div class="field"><div class="fn"><img class="ce" src="/emoji/vouch.png" alt="" /> Vouch channel</div><div class="fv">#vouches</div></div>
+        <div class="field"><div class="fn"><img class="ce" src="/emoji/clock.png" alt="" /> Automatic checks</div><div class="fv">Mon 9:00</div></div>
+      </div>
+      <div class="foot">Server settings</div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Rank card · /rank</div>
+    <article class="card" style="--accent:#5865f2">
+      <div class="thumb">S</div>
+      <div class="kicker">ʟᴇᴠᴇʟꜱ</div>
+      <h2>LEVEL 42</h2>
+      <div class="subtitle">seraph · rank #3</div>
+      <div class="rows">
+        <div class="row"><img class="ce" src="/emoji/spark.png" alt="" /><span class="lbl">XP</span><span class="sep">·</span><span class="v">12,480</span></div>
+        <div class="row"><span class="gl">💬</span><span class="lbl">Messages</span><span class="sep">·</span><span class="v">3,914</span></div>
+      </div>
+      <div class="bar">
+        <div class="track"><div class="fill"></div></div>
+        <div class="cap"><img class="ce" src="/emoji/up.png" alt="up" /> 2,480/5,000 XP · 2,520 to go</div>
+      </div>
+      <div class="foot">Nemino</div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Leaderboard · /scoreboard</div>
+    <article class="card" style="--accent:#fee75c">
+      <div class="kicker"><img class="ce" src="/emoji/trophy.png" alt="trophy" /> ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ</div>
+      <h2>TOP MEMBERS</h2>
+      <div class="rows">
+        <div class="row"><img class="ce" src="/emoji/m1.png" alt="1" /><span class="v"><b>@seraph</b> <span class="sep">·</span> 12,480</span></div>
+        <div class="row"><img class="ce" src="/emoji/m2.png" alt="2" /><span class="v"><b>@nemino</b> <span class="sep">·</span> 9,215</span></div>
+        <div class="row"><img class="ce" src="/emoji/m3.png" alt="3" /><span class="v"><b>@ghost</b> <span class="sep">·</span> 7,860</span></div>
+        <div class="row"><span class="v dim" style="margin-left:18px"><b>#4</b> @ember <span class="sep">·</span> 6,102</span></div>
+        <div class="row"><span class="v dim" style="margin-left:18px"><b>#5</b> @void <span class="sep">·</span> 5,448</span></div>
+      </div>
+      <div class="foot">Levels</div>
+    </article>
+  </section>
+
+  <section>
+    <div class="slot-label">Honeypot · armed (classic embed)</div>
+    <article class="card" style="--accent:#57f287">
+      <h2><img class="ce" src="/emoji/honey.png" alt="honey" /> Honeypot armed</h2>
+      <div class="embedbody">
+        <p><b>Channel:</b> #honeypot<br /><b>Invite sent on kick:</b> yes<br /><b>Kicked so far:</b> 12<br /><b>Bot can kick:</b> yes</p>
+        <p>Anyone who sends a message here is kicked and DMed that invite.<br />Moderators and above are immune — their message is removed and they are told privately.</p>
+      </div>
+    </article>
+  </section>
+
+</div>
+
+<div class="legend">
+  <h3>The pack · 29 uploaded PNGs, one per slot</h3>
+  <div class="chips" id="chips"></div>
+  <div class="note">Missing or deleted emoji fall back to a plain glyph in code, so a card never prints <code>&lt;:name:id&gt;</code> as text. Uploads can use the short name (<code>ok</code>) or the prefixed one (<code>nem_ok</code>).</div>
+</div>
+
+<script>
+  const SLOTS = ['ok','no','warn','up','down','swap','ticket','app','file','log','gift','idea','vouch','staff','palm','clock','shield','honey','broom','money','trophy','note','chart','list','spark','gear','m1','m2','m3'];
+  document.getElementById('chips').innerHTML = SLOTS
+    .map((name) => `<div class="chip"><div class="g"><img class="ce" src="/emoji/${name}.png" alt="${name}" /></div><div class="n">${name}</div></div>`)
+    .join('');
+</script>
+
+</body>
+</html>

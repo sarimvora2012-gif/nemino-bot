@@ -30,6 +30,7 @@ const {
   COLORS,
 } = require('../lib/helpers');
 const { DEFAULT_QUESTIONS } = require('../store');
+const { icon } = require('../lib/emojis');
 const { createTicketChannel } = require('./ticket');
 
 const QUESTIONS_PER_PAGE = 5;
@@ -511,7 +512,7 @@ async function submitDraft(client, draft, { store }) {
 
   await sendLog(guild, settings, [
     embed({
-      title: 'Application submitted',
+      title: `${icon(guild, 'app')} Application submitted`,
       color: COLORS.brand,
       fields: [
         { name: 'Applicant', value: `<@${draft.userId}> (${draft.userId})`, inline: true },
@@ -615,7 +616,7 @@ async function execute(interaction, { store }) {
       await interaction.reply({
         embeds: [
           embed({
-            title: 'Application questions',
+            title: `${icon(interaction.guild, 'app')} Application questions`,
             description: questions.map((question, index) => `**${index + 1}.** ${question}`).join('\n'),
             color: COLORS.brand,
             footer: `${questions.length} question${questions.length === 1 ? '' : 's'} · max ${MAX_QUESTIONS}`,
@@ -859,7 +860,7 @@ async function openApplicationTicket(interaction, { store, applicationId }) {
 
   await sendLog(guild, settings, [
     embed({
-      title: 'Application ticket opened',
+      title: `${icon(guild, 'ticket')} Application ticket opened`,
       color: COLORS.success,
       fields: [
         { name: 'Applicant', value: `${applicant.user}`, inline: true },
@@ -989,7 +990,7 @@ async function handleButton(interaction, { store }) {
 
     await sendLog(guild, settings, [
       embed({
-        title: 'Application accepted',
+        title: `${icon(guild, 'ok')} Application accepted`,
         color: COLORS.success,
         fields: [
           { name: 'Applicant', value: `${member.user}`, inline: true },
@@ -1066,7 +1067,7 @@ async function handleModal(interaction, { store }) {
       await safeDM(applicant, {
         embeds: [
           embed({
-            title: 'Your application was not accepted',
+            title: `${icon(guild, 'no')} Your application was not accepted`,
             description: [
               `**Server:** ${guild.name}`,
               `**Application:** ${application.id}`,
@@ -1082,7 +1083,7 @@ async function handleModal(interaction, { store }) {
 
     await sendLog(guild, settings, [
       embed({
-        title: 'Application denied',
+        title: `${icon(guild, 'no')} Application denied`,
         color: COLORS.danger,
         fields: [
           { name: 'Applicant', value: `<@${application.userId}> (${application.userId})`, inline: true },

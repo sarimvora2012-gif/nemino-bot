@@ -1,7 +1,7 @@
 'use strict';
 
 const { Routes } = require('discord.js');
-const { embed, sendLog, COLORS } = require('./helpers');
+const { embed, sendLog, COLORS, iconsFor } = require('./helpers');
 const v2 = require('./v2');
 const { toPlain, toSmallCaps } = require('./smallcaps');
 
@@ -326,6 +326,7 @@ async function postResults(channel, guild, settings, check, missing) {
   if (!missing?.length || !channel?.isTextBased?.()) return 0;
 
   const role = highStaffRoleFor(guild, settings);
+  const e = iconsFor(guild);
   const reacted = (check.requiredIds ?? []).filter((id) => !missing.includes(id)).length;
   const showNames = channel.id === MISSED_CHANNEL_ID;
   // Always one card with the counts, even when the names stay behind.
@@ -335,8 +336,8 @@ async function postResults(channel, guild, settings, check, missing) {
     const first = index === 0;
     const card = v2.card({
       accent: COLORS.danger,
-      kicker: toSmallCaps('activity check results'),
-      title: first ? '📋 MISSED THE CHECK' : '📋 MISSED THE CHECK — MORE',
+      kicker: `${e('chart')} ${toSmallCaps('activity check results')}`,
+      title: `${e('app')} ${first ? 'MISSED THE CHECK' : 'MISSED THE CHECK — MORE'}`,
       description: first
         ? [
             role ? `<@&${role.id}>` : '**High staff**',
@@ -348,9 +349,9 @@ async function postResults(channel, guild, settings, check, missing) {
         : '-# Continued',
       stats: first
         ? [
-            { emoji: '✅', label: 'Reacted', value: `${reacted}/${(check.requiredIds ?? []).length}` },
-            { emoji: '🌴', label: 'On LOA', value: `${(check.loaIds ?? []).length}` },
-            { emoji: '❌', label: 'Missed', value: `${missing.length}` },
+            { emoji: e('ok'), label: 'Reacted', value: `${reacted}/${(check.requiredIds ?? []).length}` },
+            { emoji: e('palm'), label: 'On LOA', value: `${(check.loaIds ?? []).length}` },
+            { emoji: e('no'), label: 'Missed', value: `${missing.length}` },
           ]
         : [],
       sections: chunks[index] ? [chunks[index]] : [],
@@ -393,13 +394,14 @@ async function postMissedList(guild, check, missing) {
     return 0;
   }
 
+  const e = iconsFor(guild);
   const chunks = mentionChunks(missing);
   for (let index = 0; index < chunks.length; index += 1) {
     const first = index === 0;
     const card = v2.card({
       accent: COLORS.danger,
-      kicker: toSmallCaps('activity check'),
-      title: first ? '❌ MISSED THE ACTIVITY CHECK' : '❌ MISSED THE ACTIVITY CHECK — MORE',
+      kicker: `${e('list')} ${toSmallCaps('activity check')}`,
+      title: `${e('no')} ${first ? 'MISSED THE ACTIVITY CHECK' : 'MISSED THE ACTIVITY CHECK — MORE'}`,
       description: first
         ? `**${missing.length}** active staff did not react before the check closed.\n-# ${(check?.requiredIds ?? []).length} checked · ${(check?.loaIds ?? []).length} on LOA`
         : '-# Continued',
@@ -448,6 +450,7 @@ async function reactedUsers(check, message, { reconcile = false } = {}) {
  */
 async function refreshCheck(ctx, guild, { ping = false, final = false, reconcile = false } = {}) {
   const settings = ctx.store.guild(guild.id);
+  const e = iconsFor(guild);
   const check = settings.activity.current;
   if (!check || check.endedAt) return null;
 
@@ -512,14 +515,14 @@ async function refreshCheck(ctx, guild, { ping = false, final = false, reconcile
 
     await sendLog(guild, settings, [
       embed({
-        title: '🏁 Activity Check Ended',
+        title: `${e('chart')} Activity Check Ended`,
         description: missing.length
-          ? `> ⚠️ **${missing.length}** active staff did not react before the check closed.`
-          : '> ✅ **Everyone responded before the check closed.**',
+          ? `> ${e('warn')} **${missing.length}** active staff did not react before the check closed.`
+          : `> ${e('ok')} **Everyone responded before the check closed.**`,
         color: missing.length ? COLORS.danger : COLORS.success,
         fields: [
-          { name: '✅ Reacted', value: `${check.lastReactedCount}/${check.requiredIds.length}`, inline: true },
-          { name: '🌴 On LOA', value: `${check.loaIds.length}`, inline: true },
+          { name: `${e('ok')} Reacted`, value: `${check.lastReactedCount}/${check.requiredIds.length}`, inline: true },
+          { name: `${e('palm')} On LOA`, value: `${check.loaIds.length}`, inline: true },
         ],
         footer: check.auto ? 'Automatic check' : undefined,
         thumbnail: guild.iconURL({ size: 256 }) ?? undefined,
@@ -534,6 +537,7 @@ async function refreshCheck(ctx, guild, { ping = false, final = false, reconcile
 
 async function startCheck(ctx, { guild, channel, durationSeconds, startedBy = null, auto = false }) {
   const settings = ctx.store.guild(guild.id);
+  const e = iconsFor(guild);
   if (settings.activity.current) {
     throw new Error('An activity check is already running. End it first with `/activity end`.');
   }
@@ -588,15 +592,15 @@ async function startCheck(ctx, { guild, channel, durationSeconds, startedBy = nu
 
   await sendLog(guild, settings, [
     embed({
-      title: '🚀 Activity Check Started',
-      description: `> 📣 A new activity check is live in ${channel}.`,
+      title: `${e('clock')} Activity Check Started`,
+      description: `> ${e('list')} A new activity check is live in ${channel}.`,
       color: COLORS.brand,
       fields: [
         { name: '📍 Channel', value: `${channel}`, inline: true },
-        { name: '⏳ Ends', value: `<t:${Math.floor(Date.parse(check.endsAt) / 1000)}:R>`, inline: true },
-        { name: '👥 Active Staff', value: `${check.requiredIds.length}`, inline: true },
-        { name: '🌴 On LOA', value: `${check.loaIds.length}`, inline: true },
-        { name: '🛡️ Started By', value: auto ? 'Automatic schedule' : `${startedBy?.tag ?? 'Unknown'}` },
+        { name: `${e('clock')} Ends`, value: `<t:${Math.floor(Date.parse(check.endsAt) / 1000)}:R>`, inline: true },
+        { name: `${e('staff')} Active Staff`, value: `${check.requiredIds.length}`, inline: true },
+        { name: `${e('palm')} On LOA`, value: `${check.loaIds.length}`, inline: true },
+        { name: `${e('shield')} Started By`, value: auto ? 'Automatic schedule' : `${startedBy?.tag ?? 'Unknown'}` },
       ],
       thumbnail: guild.iconURL({ size: 256 }) ?? undefined,
     }),

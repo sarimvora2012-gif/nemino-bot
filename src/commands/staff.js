@@ -7,6 +7,7 @@ const {
   canManageRole,
   safeDM,
   COLORS,
+  iconsFor,
 } = require('../lib/helpers');
 const v2 = require('../lib/v2');
 const staffname = require('../lib/staffname');
@@ -455,23 +456,23 @@ async function finish(interaction, {
 /** The public staff movement card posted in the movement channel. */
 function movementCard({ guild, member, targetRole, fromRole, moderator, reason, action, color }) {
   const isPromote = action === 'Promoted';
+  const e = iconsFor(guild);
   return v2.card({
     accent: color,
-    kicker: toSmallCaps('staff movement'),
-    title: isPromote ? '🎉 PROMOTION' : '📉 DEMOTION',
-    subtitle: isPromote ? '✨ Another step up the ladder' : '🔄 Role updated by the staff team',
+    kicker: `${e('staff')} ${toSmallCaps('staff movement')}`,
+    title: `${e(isPromote ? 'up' : 'down')} ${isPromote ? 'PROMOTION' : 'DEMOTION'}`,
     quote: isPromote
-      ? `> 🎊 **${member}** has been promoted to **${targetRole}**!`
-      : `> 📉 **${member}** has been demoted to **${targetRole}**.`,
+      ? `> ${e('spark')} **${member}** has been promoted to **${targetRole}**!`
+      : `> ${e('swap')} **${member}** has been demoted to **${targetRole}**.`,
     stats: [
-      { emoji: '👤', label: 'Member', value: `${member}` },
+      { emoji: e('staff'), label: 'Member', value: `${member}` },
       {
-        emoji: isPromote ? '🏅' : '🔄',
+        emoji: e(isPromote ? 'up' : 'swap'),
         label: isPromote ? 'New role' : 'Role change',
         value: isPromote || !fromRole ? `${targetRole}` : `${fromRole} → ${targetRole}`,
       },
-      { emoji: '🛡️', label: 'Moderator', value: `${moderator}` },
-      { emoji: '📝', label: 'Reason', value: reason },
+      { emoji: e('shield'), label: 'Moderator', value: `${moderator}` },
+      { emoji: e('note'), label: 'Reason', value: reason },
     ],
     footer: isPromote ? 'Congratulations, keep it up 💪' : 'Staff movement record',
     thumbnail: member.user.displayAvatarURL({ size: 256 }),
@@ -481,18 +482,18 @@ function movementCard({ guild, member, targetRole, fromRole, moderator, reason, 
 /** The DM the promoted or demoted member receives. */
 function memberDM({ guild, targetRole, moderator, reason, action, color }) {
   const isPromote = action === 'Promoted';
+  const e = iconsFor(guild);
   return v2.card({
     accent: color,
     kicker: toSmallCaps(guild.name),
-    title: isPromote ? '🎉 YOU WERE PROMOTED' : '📉 YOU WERE DEMOTED',
-    subtitle: isPromote ? 'The team noticed your work' : 'Your role has been updated',
+    title: `${e(isPromote ? 'up' : 'down')} ${isPromote ? 'YOU WERE PROMOTED' : 'YOU WERE DEMOTED'}`,
     quote: isPromote
-      ? `> 🎊 Welcome to **${targetRole.name}**!`
-      : `> 🔄 You are now **${targetRole.name}**.`,
+      ? `> ${e('spark')} Welcome to **${targetRole.name}**!`
+      : `> ${e('swap')} You are now **${targetRole.name}**.`,
     stats: [
-      { emoji: '🏅', label: isPromote ? 'Role added' : 'New role', value: targetRole.name },
-      { emoji: '🛡️', label: 'By', value: moderator.tag },
-      { emoji: '📝', label: 'Reason', value: reason },
+      { emoji: e(isPromote ? 'up' : 'swap'), label: isPromote ? 'Role added' : 'New role', value: targetRole.name },
+      { emoji: e('shield'), label: 'By', value: moderator.tag },
+      { emoji: e('note'), label: 'Reason', value: reason },
     ],
     footer: isPromote ? 'Keep up the great work 🌟' : 'Reach out to a lead if you have questions',
     thumbnail: guild.iconURL({ size: 256 }) ?? undefined,

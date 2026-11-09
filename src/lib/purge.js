@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, COLORS } = require('./helpers');
+const { embed, errorEmbed, COLORS, icon } = require('./helpers');
 const { isOwnerOrCoOwner } = require('./roles');
 
 const PREFIX = '!purge';
@@ -154,7 +154,7 @@ async function handleMessage(message) {
 
   const confirmation = await channel
     .send({
-      embeds: [embed({ title: '🧹 Purged', description: lines.join('\n'), color: COLORS.success, footer: `by ${message.author.username}` })],
+      embeds: [embed({ title: `${icon(message.guild, 'broom')} Purged`, description: lines.join('\n'), color: COLORS.success, footer: `by ${message.author.username}` })],
       allowedMentions: { parse: [] },
     })
     .catch(() => null);

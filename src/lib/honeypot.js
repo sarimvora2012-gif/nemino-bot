@@ -1,7 +1,7 @@
 'use strict';
 
 const { PermissionFlagsBits } = require('discord.js');
-const { embed, errorEmbed, sendLog, safeDM, COLORS } = require('./helpers');
+const { embed, errorEmbed, sendLog, safeDM, COLORS, icon } = require('./helpers');
 const v2 = require('./v2');
 const { toPlain, toSmallCaps } = require('./smallcaps');
 
@@ -254,7 +254,7 @@ async function sendImmuneNotice(member, channel) {
   const payload = {
     embeds: [
       embed({
-        title: '🛡️ Honeypot — you are immune',
+        title: `${icon(member.guild, 'shield')} Honeypot — you are immune`,
         description: [
           `You typed in ${channel}, which is a **honeypot**: it exists to catch compromised accounts.`,
           'Your message was removed, but **moderators and above are never kicked**.',
@@ -315,7 +315,7 @@ async function handleMessage(message, { store }) {
     const dmed = await sendImmuneNotice(member, message.channel);
     await sendLog(guild, settings, [
       embed({
-        title: '🛡️ Honeypot ignored — moderator',
+        title: `${icon(guild, 'shield')} Honeypot ignored — moderator`,
         description: [
           `**Member:** ${member}`,
           `**Channel:** #${channelName}`,
@@ -341,7 +341,7 @@ async function handleMessage(message, { store }) {
   const dmSent = await safeDM(member.user, {
     embeds: [
       embed({
-        title: '🍯 You were kicked — honeypot channel',
+        title: `${icon(guild, 'honey')} You were kicked — honeypot channel`,
         description: [
           `**Server:** ${guild.name}`,
           `**Channel:** #${channelName}`,
@@ -394,7 +394,7 @@ async function handleMessage(message, { store }) {
 
   await sendLog(guild, settings, [
     embed({
-      title: kicked ? '🍯 Honeypot triggered — member kicked' : '🍯 Honeypot triggered — kick failed',
+      title: `${icon(guild, 'honey')} ${kicked ? 'Honeypot triggered — member kicked' : 'Honeypot triggered — kick failed'}`,
       description: lines.join('\n'),
       color: kicked ? COLORS.danger : COLORS.warning,
       thumbnail: member.user?.displayAvatarURL?.(),
@@ -435,7 +435,7 @@ async function handleCommand(message, guild, parsed, store) {
     await replyAndClean(message, {
       embeds: [
         embed({
-          title: 'Honeypot disabled',
+          title: `${icon(guild, 'honey')} Honeypot disabled`,
           description: [
             'Messages in the old honeypot channel are no longer punished.',
             `**Kicks recorded:** ${total}`,
@@ -487,7 +487,7 @@ async function handleCommand(message, guild, parsed, store) {
   await replyAndClean(message, {
     embeds: [
       embed({
-        title: panel ? '🍯 Honeypot armed' : '⚠️ Honeypot saved — panel failed',
+        title: panel ? `${icon(guild, 'honey')} Honeypot armed` : `${icon(guild, 'warn')} Honeypot saved — panel failed`,
         description: [
           `**Channel:** ${message.channel}`,
           `**Invite sent on kick:** ${inviteUrl}`,
@@ -521,7 +521,7 @@ async function verify({ client, store }) {
       );
       await sendLog(guild, settings, [
         embed({
-          title: '🍯 Honeypot channel is missing',
+          title: `${icon(guild, 'honey')} Honeypot channel is missing`,
           description: [
             `The armed channel (\`${config.channelId}\`) no longer exists.`,
             'The next message in a channel with **honeypot** in its name re-arms the trap automatically.',

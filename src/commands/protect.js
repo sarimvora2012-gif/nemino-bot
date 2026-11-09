@@ -8,6 +8,7 @@ const {
   COLORS,
 } = require('../lib/helpers');
 const { isProtected, ensureProtectionRole, PROTECTION_ROLE_NAME } = require('../lib/protection');
+const { icon } = require('../lib/emojis');
 
 const data = [
   new SlashCommandBuilder()
@@ -67,7 +68,7 @@ async function execute(interaction, { store }) {
     await interaction.reply({
       embeds: [
         embed({
-          title: '🛡️ Kick protection',
+          title: `${icon(interaction.guild, 'shield')} Kick protection`,
           description: lines.length
             ? lines.join('\n')
             : '_No members are protected yet._',

@@ -1,6 +1,6 @@
 'use strict';
 
-const { embed, errorEmbed, isStaff, COLORS } = require('./helpers');
+const { embed, errorEmbed, isStaff, COLORS, iconsFor } = require('./helpers');
 
 const PREFIX = '!staffguide';
 const STAFF_RULES_CHANNEL_ID = '1528260370106417292';
@@ -9,14 +9,15 @@ const STAFF_CHAT_CHANNEL_ID = '1528236359708573827';
 const LOA_REQUEST_CHANNEL_ID = '1563541405706485850';
 const SUGGESTION_CHANNEL_ID = '1556519770998964275';
 
-function guideEmbed(settings) {
+function guideEmbed(settings, guild) {
+  const e = iconsFor(guild);
   const reviewChannel = settings.applications?.reviewChannelId
     ? `<#${settings.applications.reviewChannelId}>`
     : 'the application review channel';
   const rulesUrl = `https://discord.com/channels/${settings.guildId ?? '@me'}/${STAFF_RULES_CHANNEL_ID}`;
 
   return embed({
-    title: '🧑‍💼 Staff guide — everything you need',
+    title: `${e('staff')} Staff guide — everything you need`,
     description: [
       `Welcome to the team! Start with the [staff rules](${rulesUrl}) and the [staff workflow](https://discord.com/channels/${settings.guildId ?? '@me'}/${STAFF_WORKFLOW_CHANNEL_ID}).`,
       '',
@@ -27,7 +28,7 @@ function guideEmbed(settings) {
     color: COLORS.brand,
     fields: [
       {
-        name: '🎫 Tickets',
+        name: `${e('ticket')} Tickets`,
         value: [
           '`/ticket claim` — Claim a ticket when you are ready to handle it. Do not claim several at once.',
           '`/ticket add @user` — Bring in another member who can help.',
@@ -37,7 +38,7 @@ function guideEmbed(settings) {
         ].join('\n'),
       },
       {
-        name: '📝 Applications',
+        name: `${e('app')} Applications`,
         value: [
           `Review applications in ${reviewChannel}.`,
           '✅ **Accept** — only when the applicant meets the requirements.',
@@ -47,14 +48,14 @@ function guideEmbed(settings) {
         ].join('\n'),
       },
       {
-        name: '🎁 Giveaways',
+        name: `${e('gift')} Giveaways`,
         value: [
           '`/giveaway create prize:<text> duration:<1d> claimtime:<24h>` — Host a giveaway.',
           '**When:** only after approval, in the correct giveaway channel. Do not end early or choose a winner manually. The bot draws the winner and opens the claim ticket.',
         ].join('\n'),
       },
       {
-        name: '⚠️ Strikes',
+        name: `${e('warn')} Strikes`,
         value: [
           '`!strike list @user` — Check active and voided strikes first.',
           'Only admins can add or remove strikes. Ask an admin if a strike is needed.',
@@ -62,7 +63,7 @@ function guideEmbed(settings) {
         ].join('\n'),
       },
       {
-        name: '🌴 Leave of absence',
+        name: `${e('palm')} Leave of absence`,
         value: [
           `Review LOA requests in <#${LOA_REQUEST_CHANNEL_ID}>.`,
           '✅ **Accept** — gives the member the LOA role and skips activity checks.',
@@ -71,7 +72,7 @@ function guideEmbed(settings) {
         ].join('\n'),
       },
       {
-        name: '💡 Suggestions',
+        name: `${e('idea')} Suggestions`,
         value: [
           '`/suggestion suggestion:<text>` — Submit your own idea.',
           `✅ **Approve** / ❌ **Reject** — Vote on suggestions in <#${SUGGESTION_CHANNEL_ID}> with the buttons.`,
@@ -79,7 +80,7 @@ function guideEmbed(settings) {
         ].join('\n'),
       },
       {
-        name: '🧭 General',
+        name: `${e('list')} General`,
         value: [
           '`/help` — Show every command.',
           '`/ping` — Check whether the bot is online.',
@@ -87,7 +88,7 @@ function guideEmbed(settings) {
         ].join('\n'),
       },
       {
-        name: '📌 Golden rules',
+        name: `${e('note')} Golden rules`,
         value: [
           '1. Read the staff rules before acting.',
           '2. Ask before a major action: bans, mass deletions or rank changes.',
@@ -116,7 +117,7 @@ async function handleMessage(message, { store }) {
 
   try {
     await message.channel.send({
-      embeds: [guideEmbed({ ...settings, guildId: message.guild.id })],
+      embeds: [guideEmbed({ ...settings, guildId: message.guild.id }, message.guild)],
     });
   } catch (err) {
     console.error('[staffguide] Failed to post guide:', err);
