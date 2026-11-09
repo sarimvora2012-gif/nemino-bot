@@ -6,6 +6,7 @@ data/
 transcripts/
 *.log
 *.zip
+!mockups/nemino-emoji-pack.zip
 wispbyte.env
 screenshots/
 
