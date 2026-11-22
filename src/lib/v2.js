@@ -17,7 +17,7 @@ const { progressBarPng } = require('./progressbar');
 
 const BAR_FILE = 'progress.png';
 
-const DEFAULT_COLOR = 0x5865f2;
+const DEFAULT_COLOR = 0xed4245;
 const TEXT_LIMIT = 4000;
 const SIGNATURE = 'made by seraphum';
 

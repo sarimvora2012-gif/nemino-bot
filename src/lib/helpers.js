@@ -9,12 +9,24 @@ function parseColor(input) {
   return Number.isNaN(parsed) ? 0x5865f2 : parsed;
 }
 
+/**
+ * One palette for the whole bot: red is the accent on every card, bar and
+ * button. Danger and warning are deeper / softer reds instead of another hue,
+ * so a card never switches colour family.
+ */
+const RED = 0xed4245;
+const RED_DEEP = 0xa1282b;
+const RED_SOFT = 0xff7a7d;
+
 const COLORS = {
-  brand: parseColor(process.env.EMBED_COLOR || '#5865F2'),
-  success: 0x57f287,
-  danger: 0xed4245,
-  warning: 0xfee75c,
+  brand: parseColor(process.env.EMBED_COLOR || '#ED4245'),
+  success: RED,
+  danger: RED_DEEP,
+  warning: RED_SOFT,
   neutral: 0x2b2d31,
+  red: RED,
+  deepRed: RED_DEEP,
+  softRed: RED_SOFT,
 };
 
 const { icon, iconsFor } = require('./emojis');

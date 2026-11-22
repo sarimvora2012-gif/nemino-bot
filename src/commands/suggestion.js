@@ -16,6 +16,8 @@ const {
   truncate,
 } = require('../lib/helpers');
 const { icon } = require('../lib/emojis');
+const { toSmallCaps } = require('../lib/smallcaps');
+const v2 = require('../lib/v2');
 
 const SUGGESTION_CHANNEL_ID = '1556519770998964275';
 
@@ -40,17 +42,18 @@ function voteCounts(suggestion) {
   };
 }
 
-function suggestionEmbed(suggestion, guild) {
+function suggestionCard(suggestion, guild) {
   const { up, down } = voteCounts(suggestion);
-  return embed({
-    title: `${icon(guild, 'idea')} Suggestion`,
-    description: truncate(suggestion.content, 3500),
-    color: COLORS.brand,
-    fields: [
-      { name: 'Submitted by', value: `<@${suggestion.authorId}> (${suggestion.authorTag})`, inline: true },
-      { name: 'Votes', value: `✅ **${up}** approve\n❌ **${down}** reject`, inline: true },
+  return v2.card({
+    kicker: `${icon(guild, 'idea')} ${toSmallCaps('suggestion')}`,
+    title: 'Suggestion',
+    quote: truncate(suggestion.content, 1500),
+    stats: [
+      { emoji: '✅', label: 'Approve', value: `${up}` },
+      { emoji: '❌', label: 'Reject', value: `${down}` },
     ],
-    footer: `${suggestion.id} · Staff vote using the buttons below`,
+    footer: `${suggestion.id} · <@${suggestion.authorId}>`,
+    buttons: [voteRow(suggestion)],
   });
 }
 
@@ -115,10 +118,7 @@ async function execute(interaction, { store }) {
   store.addSuggestion(suggestion);
 
   const message = await channel
-    .send({
-      embeds: [suggestionEmbed(suggestion, interaction.guild)],
-      components: [voteRow(suggestion)],
-    })
+    .send({ ...suggestionCard(suggestion, guild), allowedMentions: { parse: [] } })
     .catch((err) => {
       console.error('[suggestion] Failed to post suggestion:', err);
       return null;
@@ -190,8 +190,8 @@ async function handleButton(interaction, { store }) {
   });
 
   await interaction.update({
-    embeds: [suggestionEmbed(updated, interaction.guild)],
-    components: [voteRow(updated)],
+    ...suggestionCard(updated, interaction.guild),
+    allowedMentions: { parse: [] },
   });
 
   const hasVote =
@@ -213,6 +213,6 @@ module.exports = {
   execute,
   handleButton,
   SUGGESTION_CHANNEL_ID,
-  suggestionEmbed,
+  suggestionCard,
   voteRow,
 };

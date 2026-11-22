@@ -48,6 +48,7 @@ const staffguide = require('./lib/staffguide');
 const steal = require('./lib/steal');
 const strike = require('./lib/strike');
 const timeout = require('./lib/timeout');
+const updates = require('./lib/updates');
 const vouch = require('./lib/vouch');
 const welcome = require('./lib/welcome');
 const v2 = require('./lib/v2');
@@ -80,6 +81,7 @@ const componentModules = {
   suggestion: () => modules.suggestion,
   loa: () => loa,
   spawner: () => spawnerBoard,
+  update: () => updates,
   roleicons: () => roleicons,
   scoreboard: () => modules.scoreboard,
 };
@@ -140,6 +142,10 @@ client.once(Events.ClientReady, (readyClient) => {
     .verify(context)
     .catch((err) => console.error('[honeypot] Startup check failed:', err));
   membercount.start(context);
+  // A new version waits in the review channel until staff post or skip it.
+  updates
+    .announceOnStartup(readyClient, store)
+    .catch((err) => console.error('[updates] Startup announcement failed:', err));
   modules.ticket
     ?.sweepClosedTickets(context)
     .catch((err) => console.error('[ticket] Cleanup failed:', err));

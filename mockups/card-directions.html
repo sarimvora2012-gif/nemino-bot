@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Nemino · card directions</title>
+<style>
+  :root {
+    --page: #16171a;
+    --card: #2b2d31;
+    --text: #f2f3f5;
+    --muted: #b5bac1;
+    --line: #3f4147;
+    --blurple: #5865f2;
+    --green: #57f287;
+    --cyan: #6ee7f9;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    width: 1000px;
+    padding: 26px 24px 24px;
+    background:
+      radial-gradient(760px 360px at 6% -10%, rgba(88, 101, 242, 0.18), transparent 60%),
+      radial-gradient(680px 320px at 100% 2%, rgba(87, 242, 135, 0.07), transparent 55%),
+      var(--page);
+    color: var(--text);
+    font-family: "gg sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "Cascadia Mono", Consolas, "SFMono-Regular", monospace; }
+
+  .board-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 16px; }
+  .brand { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8ea1e1; font-weight: 700; margin-bottom: 5px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; font-weight: 800; }
+  h1 span { color: #b5bac1; font-weight: 500; }
+  .board-sub { margin-top: 5px; color: var(--muted); font-size: 11.5px; max-width: 720px; }
+  .board-meta { text-align: right; font-size: 10px; color: var(--muted); line-height: 1.6; white-space: nowrap; }
+  .board-meta b { color: var(--text); }
+
+  .dir { margin-bottom: 22px; }
+  .dir-head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .letter { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #101013; }
+  .letter.a { background: #a5b4fc; }
+  .letter.b { background: #86efac; }
+  .letter.c { background: #a5f3fc; }
+  .dir-head h2 { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: 0.01em; }
+  .dir-head p { margin: 1px 0 0; font-size: 10px; color: var(--muted); }
+  .dir-note { margin-left: auto; font-size: 9.5px; color: #8b9099; letter-spacing: 0.02em; }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .slot-label { font-size: 8.5px; letter-spacing: 0.09em; text-transform: uppercase; color: #7d818a; margin: 0 0 4px 3px; font-weight: 700; }
+
+  .card { position: relative; background: var(--card); border-radius: 8px; padding: 14px 15px 12px 17px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); min-height: 214px; }
+  .card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; border-radius: 8px 0 0 8px; background: var(--accent, var(--blurple)); }
+  .kicker { font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+  .ce { width: 14px; height: 14px; vertical-align: -2px; }
+  .ce.lg { width: 22px; height: 22px; }
+  .sub { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .foot { font-size: 9.5px; color: #7f848d; margin-top: 10px; }
+  .rule { height: 1px; background: var(--line); margin: 10px 0; }
+  .cap { font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .label { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b9099; font-weight: 700; margin: 0 0 5px; }
+  .bul { margin: 0; padding: 0; list-style: none; }
+  .bul li { font-size: 11px; color: #d6d8dc; line-height: 1.55; padding-left: 13px; position: relative; }
+  .bul li::before { content: "·"; position: absolute; left: 3px; color: #8b9099; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 5px; font-weight: 700; }
+  .row { margin-top: 11px; }
+
+  /* ---------- A · Quiet ---------- */
+  .quiet { --accent: var(--blurple); }
+  .quiet .qtitle { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin: 5px 0 1px; color: #f7f8f9; }
+  .quiet .facts { display: flex; gap: 9px; align-items: baseline; font-size: 11.5px; color: var(--muted); }
+  .quiet .facts b { color: var(--text); font-weight: 600; }
+  .quiet .facts i { color: #5c5f66; font-style: normal; }
+  .quiet-bar { height: 6px; border-radius: 4px; background: #3a3d43; overflow: hidden; margin: 11px 0 0; }
+  .quiet-bar b { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .quiet-btn { background: #4e5058; color: #f2f3f5; font-size: 11px; padding: 6px 12px; }
+
+  /* ---------- B · Bold ---------- */
+  .bold { --accent: var(--green); background: #2b2d31; }
+  .bold .btitle { display: flex; align-items: center; gap: 8px; font-size: 26px; font-weight: 900; letter-spacing: -0.02em; margin: 6px 0 2px; }
+  .bold .avatar { position: absolute; top: 14px; right: 15px; width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(145deg, #c9d4ff, #8ea1e1); display: grid; place-items: center; color: #16171a; font-weight: 900; font-size: 14px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 11px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; background: rgba(255,255,255,0.06); border-radius: 6px; padding: 4px 8px; color: #e9eaec; }
+  .bold-bar { position: relative; height: 16px; border-radius: 8px; background: #3a3d43; overflow: hidden; margin: 12px 0 0; display: flex; align-items: center; }
+  .bold-bar b { position: absolute; inset: 0 auto 0 0; width: 36%; background: linear-gradient(90deg, #3fd07a, #86efac); border-radius: 8px; }
+  .bold-bar span { position: relative; z-index: 1; font-size: 9.5px; font-weight: 800; color: #0f2417; padding-left: 8px; letter-spacing: 0.02em; }
+  .bold-btn { background: #248046; color: #fff; font-size: 12px; padding: 7px 14px; }
+  .bold .qtitle { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; margin: 6px 0 2px; }
+
+  /* ---------- C · Console ---------- */
+  .console { --accent: var(--cyan); background: #232428; border: 1px solid #34373d; }
+  .console .chead { display: flex; justify-content: space-between; font-family: "Cascadia Mono", Consolas, monospace; font-size: 9px; letter-spacing: 0.14em; color: #8b9099; text-transform: uppercase; }
+  .console .cid { color: #5c5f66; }
+  .console .ctitle { font-family: "Cascadia Mono", Consolas, monospace; font-size: 21px; font-weight: 700; letter-spacing: 0.02em; margin: 10px 0 8px; }
+  .console .ctitle span { font-size: 10px; color: #8b9099; font-weight: 500; letter-spacing: 0.08em; margin-left: 6px; }
+  .console .crow { display: flex; align-items: baseline; gap: 6px; font-family: "Cascadia Mono", Consolas, monospace; font-size: 10.5px; color: #c7cad1; margin: 4px 0; }
+  .console .crow > span:first-child { color: #8b9099; letter-spacing: 0.08em; }
+  .console .lead { flex: 1; border-bottom: 1px dotted #4a4d55; }
+  .console .crow b { color: #f2f3f5; }
+  .console .blocks { font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; letter-spacing: 1px; margin-top: 10px; }
+  .console .blocks em { font-style: normal; color: var(--cyan); }
+  .console .blocks i { font-style: normal; color: #4a4d55; }
+  .console-btn { font-family: "Cascadia Mono", Consolas, monospace; background: transparent; border: 1px solid #4a4d55; color: #d6f7fd; font-size: 10.5px; letter-spacing: 0.12em; padding: 6px 10px; text-transform: uppercase; }
+
+  .ticks { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 12px; }
+  .ticks li { font-size: 10px; color: #9fa3ac; line-height: 1.45; padding-left: 12px; position: relative; }
+  .ticks li::before { content: "·"; position: absolute; left: 3px; color: #6ee7f9; }
+  .ticks b { color: #d6d8dc; font-weight: 600; }
+
+  .footnote { margin-top: 8px; font-size: 9.5px; color: #7d818a; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 9px; }
+
+  html[data-only="a"] .dir:not([data-only="a"]),
+  html[data-only="b"] .dir:not([data-only="b"]),
+  html[data-only="c"] .dir:not([data-only="c"]) { display: none; }
+</style>
+</head>
+<body>
+
+<div class="board-head">
+  <div>
+    <div class="brand">Nemino &nbsp;·&nbsp; design board</div>
+    <h1>Card directions <span>— same content, three treatments</span></h1>
+    <div class="board-sub">The rank card and the ticket panel drawn in each direction, so you can pick the voice before anything in <code>src/</code> changes.</div>
+  </div>
+  <div class="board-meta">
+    <div><b>3</b> directions</div>
+    <div><b>2</b> cards each</div>
+    <div>pack art on A + B</div>
+  </div>
+</div>
+
+<section class="dir" data-only="a">
+  <div class="dir-head">
+    <div class="letter a">A</div>
+    <div><h2>Quiet</h2><p>Public cards: panels, welcome, updates</p></div>
+    <div class="dir-note">sentence case · small-caps labels · one accent</div>
+  </div>
+  <div class="pair">
+    <div>
+      <div class="slot-label">/rank</div>
+      <article class="card quiet">
+        <div class="kicker"><img class="ce" src="/emoji/spark.png" alt=""> ʟᴇᴠᴇʟꜱ</div>
+        <div class="qtitle">Level 7</div>
+        <div class="sub">nemino · rank #3 of 128</div>
+        <div class="rule"></div>
+        <div class="facts"><span><b>4,120</b> XP</span><i>·</i><span><b>812</b> messages</span></div>
+        <div class="quiet-bar"><b style="width:36%"></b></div>
+        <div class="cap">36% · 580 XP to level 8</div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+    <div>
+      <div class="slot-label">ticket panel</div>
+      <article class="card quiet">
+        <div class="kicker"><img class="ce" src="/emoji/ticket.png" alt=""> ꜱᴜᴘᴘᴏʀᴛ</div>
+        <div class="qtitle">Need help?</div>
+        <div class="sub">A private line to the staff team, opened in one click.</div>
+        <div class="rule"></div>
+        <div class="label">Before you open</div>
+        <ul class="bul">
+          <li>Check the FAQ and announcements first.</li>
+          <li>One ticket per issue — no duplicates.</li>
+        </ul>
+        <div class="row"><span class="btn quiet-btn">Open a ticket</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+  </div>
+  <ul class="ticks">
+    <li><b>Title</b> is sentence case, never shouted.</li>
+    <li><b>Facts</b> sit on one line, labels dimmed.</li>
+    <li><b>One</b> accent colour, thin and calm.</li>
+  </ul>
+</section>
+
+<section class="dir" data-only="b">
+  <div class="dir-head">
+    <div class="letter b">B</div>
+    <div><h2>Bold</h2><p>Game-facing cards: rank, level-up, giveaways</p></div>
+    <div class="dir-note">big headings · pack emoji · bars with the % inside</div>
+  </div>
+  <div class="pair">
+    <div>
+      <div class="slot-label">/rank</div>
+      <article class="card bold">
+        <div class="avatar">N</div>
+        <div class="kicker"><img class="ce" src="/emoji/spark.png" alt=""> ʟᴇᴠᴇʟꜱ</div>
+        <div class="btitle"><img class="ce lg" src="/emoji/trophy.png" alt=""> LEVEL 7</div>
+        <div class="sub">nemino · rank #3 of 128</div>
+        <div class="chips">
+          <span class="chip"><img class="ce" src="/emoji/spark.png" alt="">4,120 XP</span>
+          <span class="chip">💬 812 msgs</span>
+        </div>
+        <div class="bold-bar"><b></b><span>36%</span></div>
+        <div class="cap">580 XP to level 8</div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+    <div>
+      <div class="slot-label">ticket panel</div>
+      <article class="card bold">
+        <div class="kicker"><img class="ce" src="/emoji/ticket.png" alt=""> ꜱᴜᴘᴘᴏʀᴛ</div>
+        <div class="qtitle">Need help?</div>
+        <div class="sub">A private line to the staff team, opened in one click.</div>
+        <div class="rule"></div>
+        <div class="label">Before you open</div>
+        <ul class="bul">
+          <li>Check the FAQ and announcements first.</li>
+          <li>One ticket per issue — no duplicates.</li>
+        </ul>
+        <div class="row"><span class="btn bold-btn">🎫 Open a ticket</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+  </div>
+  <ul class="ticks">
+    <li><b>Big</b> level line, avatar keeps the corner.</li>
+    <li><b>Stats</b> become chips you can scan.</li>
+    <li><b>Bar</b> is the hero: green, rounded, 36% inside.</li>
+  </ul>
+</section>
+
+<section class="dir" data-only="c">
+  <div class="dir-head">
+    <div class="letter c">C</div>
+    <div><h2>Console</h2><p>Staff + log cards: strikes, checks, reviews</p></div>
+    <div class="dir-note">monospace · dotted leaders · segmented bar</div>
+  </div>
+  <div class="pair">
+    <div>
+      <div class="slot-label">/rank</div>
+      <article class="card console">
+        <div class="chead"><span>Levels</span><span class="cid">CARD-1042</span></div>
+        <div class="ctitle">LEVEL 7 <span>#3 / 128</span></div>
+        <div class="crow"><span>XP</span><i class="lead"></i><b>4,120</b></div>
+        <div class="crow"><span>MSGS</span><i class="lead"></i><b>812</b></div>
+        <div class="crow"><span>NEXT</span><i class="lead"></i><b>580</b></div>
+        <div class="blocks"><em>▰▰▰▰</em><i>▱▱▱▱▱▱</i></div>
+        <div class="cap">36% · sync 2s ago</div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+    <div>
+      <div class="slot-label">ticket panel</div>
+      <article class="card console">
+        <div class="chead"><span>Support</span><span class="cid">PANEL-01</span></div>
+        <div class="ctitle">NEED HELP? </div>
+        <div class="crow"><span>01</span><i class="lead"></i><span>read the FAQ</span></div>
+        <div class="crow"><span>02</span><i class="lead"></i><span>one ticket / issue</span></div>
+        <div class="row"><span class="btn console-btn">Open ticket</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+  </div>
+  <ul class="ticks">
+    <li><b>Labels</b> in mono caps, values right-aligned.</li>
+    <li><b>IDs</b> live in the body, never the footer.</li>
+    <li><b>Bar</b> reads as a gauge, not decoration.</li>
+  </ul>
+</section>
+
+<div class="footnote">A is my pick for anything members see daily; C for review and log cards. Both can share one header grammar so the bot stops looking like two bots.</div>
+
+<script>
+  const only = new URLSearchParams(location.search).get('only');
+  if (only) document.documentElement.dataset.only = only;
+</script>
+</body>
+</html>

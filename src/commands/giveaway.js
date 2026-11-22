@@ -21,6 +21,8 @@ const {
 } = require('../lib/helpers');
 const activity = require('../lib/activity');
 const { icon } = require('../lib/emojis');
+const { toSmallCaps } = require('../lib/smallcaps');
+const v2 = require('../lib/v2');
 const { createTicketChannel } = require('./ticket');
 
 /** The category giveaway claim tickets are created in. */
@@ -146,21 +148,20 @@ function claimRow(giveaway) {
   );
 }
 
-function activeEmbed(giveaway, guild) {
-  return embed({
-    title: `${icon(guild, 'gift')} Giveaway`,
-    description: [
-      `**Prize:** ${giveaway.prize}`,
-      `**Host:** <@${giveaway.hostId}>`,
-      `**Ends:** ${relative(giveaway.endsAt)}`,
-      `**Claim window:** ${activity.formatDuration(giveaway.claimSeconds, { seconds: true })} after the giveaway ends`,
-      `**Entries:** ${giveaway.entries.length}`,
-      ...(giveaway.winnerCount > 1 ? [`**Winners:** ${giveaway.winnerCount}`] : []),
-      '',
-      'Click **Enter Giveaway** below for a chance to win!',
-    ].join('\n'),
-    color: COLORS.brand,
-    footer: giveaway.id,
+function activePayload(giveaway, guild) {
+  return v2.card({
+    kicker: `${icon(guild, 'gift')} ${toSmallCaps('giveaway')}`,
+    title: giveaway.prize,
+    subtitle: `hosted by <@${giveaway.hostId}> · ${giveaway.id}`,
+    description: `**Claim window** ${activity.formatDuration(giveaway.claimSeconds, { seconds: true })} after the draw`,
+    stats: [
+      { emoji: '⏳', label: 'Ends', value: relative(giveaway.endsAt) },
+      { emoji: '🎟️', label: 'Entries', value: `${giveaway.entries.length}` },
+      ...(giveaway.winnerCount > 1
+        ? [{ emoji: '🏆', label: 'Winners', value: `${giveaway.winnerCount}` }]
+        : []),
+    ],
+    buttons: [activeEntryRow(giveaway)],
   });
 }
 
@@ -358,7 +359,7 @@ async function execute(interaction, { store }) {
   };
 
   const message = await interaction.channel
-    .send({ embeds: [activeEmbed(giveaway, interaction.guild)], components: [activeEntryRow(giveaway)] })
+    .send({ ...activePayload(giveaway, interaction.guild), allowedMentions: { parse: [] } })
     .catch((err) => {
       console.error('[giveaway] Failed to post giveaway:', err);
       return null;
@@ -437,11 +438,8 @@ async function handleEnter(interaction, { store }, giveaway) {
   });
 
   await interaction.message
-    .edit({
-      embeds: [activeEmbed(giveaway, interaction.guild)],
-      // Without the row the button vanishes for everyone after the first entry.
-      components: [activeEntryRow(giveaway)],
-    })
+    // The payload carries the entry button, so it stays after every entry.
+    .edit({ ...activePayload(giveaway, interaction.guild), allowedMentions: { parse: [] } })
     .catch((err) => console.error('[giveaway] Failed to update entry count:', err.message));
 }
 
@@ -691,7 +689,7 @@ module.exports = {
   data,
   execute,
   handleButton,
-  activeEmbed,
+  activePayload,
   activeEntryRow,
   endedContent,
   endedPayload,

@@ -3929,6 +3929,141 @@ test('the level board opens the scoreboard and its buttons page it', async () =>
   assert.equal(scoreboard.parseButtonId('scoreboard:nonsense:1'), null);
 });
 
+test('release notes are ordered newest first and read as feature bullets', () => {
+  const updates = require('../src/lib/updates');
+  assert.ok(updates.RELEASES.length > 0, 'there is at least one release');
+
+  const numbers = updates.RELEASES.map((release) => Number(release.version.replace(/^v/, '')));
+  assert.deepEqual(numbers, [...numbers].sort((a, b) => b - a), 'the newest release is first');
+
+  for (const release of updates.RELEASES) {
+    assert.match(release.version, /^v\d+$/, 'versions look like v3');
+    assert.ok(release.features.length > 0, `${release.version} needs at least one feature`);
+    for (const feature of release.features) {
+      assert.ok(feature.name && feature.detail, 'every feature names itself and what it does');
+    }
+  }
+
+  assert.equal(updates.latestVersion(), updates.RELEASES[0].version);
+  assert.equal(updates.releaseFor('v2').version, 'v2');
+  assert.equal(updates.releaseFor('nope'), null);
+});
+
+test('the update card titles the features and shows the version big', () => {
+  const updates = require('../src/lib/updates');
+  const release = updates.releaseFor('v3');
+  const text = JSON.stringify(updates.updateCard(null, release));
+
+  assert.ok(text.includes('# Spawner pricing · Update notes'), 'the title names the features');
+  assert.ok(text.includes('## v3'), 'the version is a large heading under the title');
+  assert.ok(text.includes('- **Spawner pricing** —'), 'each feature is a bullet');
+});
+
+test('the draft pings the Co Owner role and offers post or skip', () => {
+  const updates = require('../src/lib/updates');
+  const guild = { id: 'g1', roles: { cache: [{ id: 'role-co', name: '👑 ᴄᴏ-ᴏᴡɴᴇʀ' }] } };
+
+  assert.equal(updates.coOwnerRole(guild)?.id, 'role-co', 'the small-caps role still matches');
+  assert.equal(updates.coOwnerRole({ id: 'g1', roles: { cache: [] } }), null);
+
+  const buttons = updates.reviewComponents('v3').toJSON().components;
+  assert.deepEqual(
+    buttons.map((button) => button.custom_id),
+    ['update:post:v3', 'update:skip:v3'],
+  );
+  assert.deepEqual(
+    buttons.map((button) => button.label),
+    ['Post update', 'Skip'],
+  );
+
+  const payload = updates.draftPayload(guild, updates.releaseFor('v3'));
+  assert.ok(payload.content.includes('<@&role-co>'), 'the Co Owner role is pinged');
+  assert.deepEqual(payload.allowedMentions, { parse: [], roles: ['role-co'] });
+  assert.ok(payload.flags, 'it is a Components V2 message');
+
+  const denied = updates.canReview({ permissionsFor: () => ({ has: () => false }) }, { id: 'u' });
+  assert.equal(denied, false, 'a member without access cannot decide');
+  const allowed = updates.canReview({ permissionsFor: () => ({ has: () => true }) }, { id: 'u' });
+  assert.equal(allowed, true);
+});
+
+test('a reviewed update is posted once and its draft loses the buttons', async () => {
+  const updates = require('../src/lib/updates');
+  const version = updates.latestVersion();
+  const announcements = [];
+  const guild = {
+    id: 'g1',
+    name: 'Nemino',
+    roles: { cache: [] },
+    channels: {
+      cache: new Map([
+        [
+          updates.UPDATE_CHANNEL_ID,
+          {
+            id: updates.UPDATE_CHANNEL_ID,
+            isTextBased: () => true,
+            send: async (payload) => {
+              announcements.push(payload);
+              return { id: 'announcement-1' };
+            },
+          },
+        ],
+      ]),
+      fetch: async () => null,
+    },
+  };
+
+  let saves = 0;
+  const settings = { updates: { lastVersion: version, pendingVersion: version } };
+  const store = {
+    guild: () => settings,
+    save: () => {
+      saves += 1;
+    },
+  };
+
+  const run = async (hasAccess) => {
+    const replies = [];
+    const edits = [];
+    const interaction = {
+      guild,
+      user: { id: 'staff-1' },
+      member: { id: 'staff-1' },
+      customId: `update:post:${version}`,
+      channel: { permissionsFor: () => ({ has: () => hasAccess }) },
+      reply: async (payload) => replies.push(payload),
+      update: async (payload) => edits.push(payload),
+    };
+    await updates.handleButton(interaction, { store });
+    return { replies, edits };
+  };
+
+  const refused = await run(false);
+  assert.equal(refused.replies.length, 1, 'a member without access is answered');
+  assert.ok(refused.replies[0].flags & 64, 'the refusal is ephemeral');
+  assert.equal(announcements.length, 0, 'and nothing is posted');
+  assert.equal(settings.updates.pendingVersion, version, 'the note stays waiting');
+
+  const posted = await run(true);
+  assert.equal(announcements.length, 1, 'the announcement is posted exactly once');
+  assert.equal(posted.edits.length, 1, 'the review message is rewritten');
+  assert.equal(settings.updates.pendingVersion, null, 'the note is no longer pending');
+  assert.equal(saves, 1);
+  assert.ok(
+    JSON.stringify(posted.edits[0]).includes(`Posted to <#${updates.UPDATE_CHANNEL_ID}>`),
+    'the draft records who posted it',
+  );
+  assert.ok(
+    !JSON.stringify(posted.edits[0]).includes('update:post'),
+    'the handled draft has no button left',
+  );
+
+  const again = await run(true);
+  assert.equal(announcements.length, 1, 'a second press cannot post it twice');
+  assert.equal(again.replies.length, 1);
+  assert.match(again.replies[0].embeds[0].data.title, /Already handled/);
+});
+
 Promise.all(pendingTests).then(() => {
   console.log(`\n${failures === 0 ? '✅ All checks passed' : `❌ ${failures} check(s) failed`}`);
   console.log(`${commandCountLine}\n`);

@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Nemino · red card gallery</title>
+<style>
+  :root {
+    --page: #141518;
+    --card: #2b2d31;
+    --text: #f2f3f5;
+    --muted: #b5bac1;
+    --line: #3f4147;
+    --red: #ed4245;
+    --red-soft: #ff7a7d;
+    --red-deep: #a1282b;
+    --red-wash: rgba(237, 66, 69, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    width: 960px;
+    padding: 20px 20px 16px;
+    background:
+      radial-gradient(820px 380px at 4% -12%, rgba(237, 66, 69, 0.20), transparent 62%),
+      radial-gradient(700px 320px at 100% 0%, rgba(237, 66, 69, 0.08), transparent 58%),
+      var(--page);
+    color: var(--text);
+    font-family: "gg sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .board-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.07); margin-bottom: 14px; }
+  .brand { font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--red-soft); font-weight: 700; margin-bottom: 5px; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; font-weight: 800; }
+  h1 span { color: #b5bac1; font-weight: 500; }
+  .board-sub { margin-top: 4px; color: var(--muted); font-size: 10.5px; max-width: 700px; }
+  .board-meta { text-align: right; font-size: 10px; color: var(--muted); line-height: 1.6; white-space: nowrap; }
+  .board-meta b { color: var(--text); }
+
+  .swatches { display: flex; gap: 6px; margin: 0 0 10px; align-items: center; font-size: 9.5px; color: #8b9099; }
+  .sw { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.12); }
+  .sw1 { background: var(--red); }
+  .sw2 { background: var(--red-deep); }
+  .sw3 { background: var(--red-soft); }
+  .sw4 { background: var(--red-wash); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; align-items: start; }
+  .wide { grid-column: span 2; }
+  .slot-label { font-size: 8.5px; letter-spacing: 0.09em; text-transform: uppercase; color: #7d818a; margin: 0 0 4px 3px; font-weight: 700; }
+
+  .card { position: relative; background: var(--card); border-radius: 8px; padding: 11px 12px 9px 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+  .card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; border-radius: 8px 0 0 8px; background: var(--red); }
+  .kicker { font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 5px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+  .ce { width: 14px; height: 14px; vertical-align: -2px; }
+  .ce.lg { width: 20px; height: 20px; }
+  .title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin: 4px 0 1px; color: #f7f8f9; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .title.sm { font-size: 15px; }
+  .sub { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .rule { height: 1px; background: var(--line); margin: 9px 0; }
+  .label { font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: #8b9099; font-weight: 700; margin: 0 0 4px; }
+  .bul { margin: 0; padding: 0; list-style: none; }
+  .bul li { font-size: 10.8px; color: #d6d8dc; line-height: 1.5; padding-left: 12px; position: relative; }
+  .bul li::before { content: "·"; position: absolute; left: 3px; color: var(--red-soft); }
+  .facts { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10.8px; color: var(--muted); }
+  .facts b { color: var(--text); font-weight: 600; }
+  .facts .dot { color: #5c5f66; }
+  .row { display: flex; gap: 6px; align-items: center; font-size: 10.8px; color: #d6d8dc; margin: 3px 0; }
+  .row .k { color: #8b9099; min-width: 56px; }
+  .bar { height: 7px; border-radius: 4px; background: #3a3d43; overflow: hidden; margin: 9px 0 0; }
+  .bar b { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--red-deep), var(--red-soft)); }
+  .cap { font-size: 9.8px; color: var(--muted); margin-top: 5px; }
+  .foot { font-size: 9.3px; color: #7f848d; margin-top: 9px; }
+  .quote { margin: 8px 0 6px; padding: 5px 9px; border-left: 3px solid var(--red); background: rgba(237,66,69,0.07); border-radius: 0 4px 4px 0; font-size: 10.6px; color: #f0e6e6; line-height: 1.45; }
+  .btnrow { display: flex; gap: 6px; margin-top: 10px; }
+  .btn { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 5px 11px; background: var(--red); color: #fff; }
+  .btn.ghost { background: transparent; border: 1px solid #4a4d55; color: #d6d8dc; }
+  .tag { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #ffd9da; background: var(--red-wash); border: 1px solid rgba(237,66,69,0.35); border-radius: 4px; padding: 1px 5px; }
+  .mention { background: rgba(88, 101, 242, 0.22); color: #c9d0ff; border-radius: 4px; padding: 0 4px; font-weight: 600; }
+  .chan { color: #c9d0ff; }
+  .role { background: rgba(87, 242, 135, 0.15); color: #b6f7cd; border-radius: 4px; padding: 0 4px; font-weight: 600; }
+  .thumb { position: absolute; top: 13px; right: 14px; width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(145deg, #ffb3b5, #a1282b); display: grid; place-items: center; color: #1b0f10; font-weight: 900; font-size: 13px; }
+  .thumb.sq { border-radius: 6px; }
+  .members { display: flex; flex-direction: column; gap: 2px; }
+  .medal { color: var(--red-soft); font-weight: 800; width: 14px; display: inline-block; }
+  .versions { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; color: #fff; margin: 6px 0 2px; }
+  .versions em { font-style: normal; color: var(--red); }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+  .price { display: flex; justify-content: space-between; font-size: 10.8px; color: #d6d8dc; line-height: 1.7; }
+  .price span:last-child { color: var(--text); font-weight: 700; }
+  .grid-tiny { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+  .note { font-size: 10px; color: #9fa3ac; line-height: 1.5; }
+
+  .group-head { display: flex; align-items: baseline; gap: 8px; margin: 16px 0 8px; }
+  .group-head h2 { margin: 0; font-size: 12.5px; font-weight: 800; letter-spacing: 0.02em; }
+  .group-head span { font-size: 10px; color: #8b9099; }
+  .group-head::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+
+  html[data-group="1"] .group:not([data-group="1"]),
+  html[data-group="2"] .group:not([data-group="2"]),
+  html[data-group="3"] .group:not([data-group="3"]) { display: none; }
+</style>
+</head>
+<body>
+
+<div class="board-head">
+  <div>
+    <div class="brand">Nemino &nbsp;·&nbsp; red theme gallery</div>
+    <h1>Every card in one red theme <span>— all {{COUNT}} surfaces</span></h1>
+    <div class="board-sub">The same layouts the bot already sends, with red as the single accent everywhere instead of purple / green / amber. Bars, buttons and highlights all pull from the same red.</div>
+  </div>
+  <div class="board-meta">
+    <div><b>{{COUNT}}</b> cards</div>
+    <div>accent #ed4245</div>
+    <div>quiet grammar</div>
+  </div>
+</div>
+
+<div class="swatches">
+  <span class="sw sw1"></span> #ed4245 accent
+  <span class="sw sw2"></span> #a1282b deep
+  <span class="sw sw3"></span> #ff7a7d soft
+  <span class="sw sw4"></span> #ed4245 12% wash
+</div>
+
+<section class="group" data-group="1">
+  <div class="group-head"><h2>Public &amp; member cards</h2><span>panels, rank, welcome, giveaways, video</span></div>
+  <div class="grid">
+
+    <div>
+      <div class="slot-label">ticket panel · /ticket panel</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/ticket.png" alt=""> ꜱᴜᴘᴘᴏʀᴛ</div>
+        <div class="title">Need help?</div>
+        <div class="sub">A private line to the staff team, opened in one click.</div>
+        <div class="rule"></div>
+        <div class="label">Before you open</div>
+        <ul class="bul">
+          <li>Check the FAQ and announcements first.</li>
+          <li>One ticket per issue — no duplicates.</li>
+        </ul>
+        <div class="btnrow"><span class="btn">🎫 Open a ticket</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">application panel · /application panel</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/app.png" alt=""> ꜱᴛᴀꜰꜰ</div>
+        <div class="title">Staff applications <span class="tag">open</span></div>
+        <div class="sub">Five questions, answered by DM in 60 minutes.</div>
+        <div class="rule"></div>
+        <ul class="bul">
+          <li>Answer honestly and in detail.</li>
+          <li>Denied? You can reapply after two weeks.</li>
+        </ul>
+        <div class="btnrow"><span class="btn">📝 Apply</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">welcome card</div>
+      <article class="card">
+        <div class="thumb">N</div>
+        <div class="kicker"><img class="ce" src="/emoji/spark.png" alt=""> ᴡᴇʟᴄᴏᴍᴇ</div>
+        <div class="title">Welcome to ɴᴇᴍɪɴᴏ</div>
+        <div class="sub">member #1,284 · joined just now</div>
+        <div class="rule"></div>
+        <div class="facts"><span><b>@ghost</b></span><i class="dot">·</i><span>📜 rules</span><i class="dot">·</i><span>💬 general</span></div>
+        <div class="quote">✨ Enjoy your stay!</div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">/rank</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/spark.png" alt=""> ʟᴇᴠᴇʟꜱ</div>
+        <div class="title">Level 7</div>
+        <div class="sub">nemino · rank #3 of 128</div>
+        <div class="rule"></div>
+        <div class="facts"><span><b>4,120</b> XP</span><i class="dot">·</i><span><b>812</b> messages</span></div>
+        <div class="bar"><b style="width:36%"></b></div>
+        <div class="cap">36% · 580 XP to level 8</div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">level up</div>
+      <article class="card">
+        <div class="thumb">N</div>
+        <div class="kicker"><img class="ce" src="/emoji/spark.png" alt=""> ʟᴇᴠᴇʟ ᴜᴘ</div>
+        <div class="title">Level 8</div>
+        <div class="sub">@nemino · 62% to level 9</div>
+        <div class="bar" style="margin-top:10px"><b style="width:62%"></b></div>
+        <div class="cap">1,240 / 2,000 XP · 760 to go</div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">/scoreboard</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/trophy.png" alt=""> ꜱᴄᴏʀᴇʙᴏᴀʀᴅ</div>
+        <div class="title">Top members</div>
+        <div class="sub">levels · page 1 of 3</div>
+        <div class="rule"></div>
+        <div class="members">
+          <div class="row"><span class="medal">1</span><span class="mention">@nemino</span><span style="margin-left:auto"><b>9,840</b> XP</span></div>
+          <div class="row"><span class="medal">2</span><span class="mention">@seraph</span><span style="margin-left:auto"><b>8,210</b> XP</span></div>
+          <div class="row"><span class="medal">3</span><span class="mention">@ghost</span><span style="margin-left:auto"><b>7,455</b> XP</span></div>
+        </div>
+        <div class="btnrow"><span class="btn ghost">Back</span><span class="btn ghost">Next</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">giveaway · active</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/gift.png" alt=""> ɢɪᴠᴇᴀᴡᴀʏ</div>
+        <div class="title">Nitro · 1 month</div>
+        <div class="sub">hosted by @nemino</div>
+        <div class="rule"></div>
+        <div class="facts"><span><b>48</b> entries</span><i class="dot">·</i><span>ends <b>in 2 days</b></span></div>
+        <div class="btnrow"><span class="btn">🎁 Enter giveaway</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">giveaway · winners</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/trophy.png" alt=""> ɢɪᴠᴇᴀᴡᴀʏ</div>
+        <div class="title sm">Nitro · 1 month</div>
+        <div class="quote">🎉 Congrats <span class="mention">@ghost</span>! You won <b>Nitro · 1 month</b>.</div>
+        <div class="cap">Claim window closes in 24h</div>
+        <div class="btnrow"><span class="btn">🎁 Claim prize</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">/upload video</div>
+      <article class="card">
+        <div class="thumb sq">N</div>
+        <div class="kicker"><img class="ce" src="/emoji/spark.png" alt=""> ɴᴇᴍɪɴᴏ</div>
+        <div class="title sm">New video from realnemino</div>
+        <div class="sub">new upload · yesterday</div>
+        <div class="rule"></div>
+        <div class="note">Watch the full video on YouTube — the link is below.</div>
+        <div class="btnrow"><span class="btn ghost">▶ Watch on YouTube</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+  </div>
+</section>
+
+<section class="group" data-group="2">
+  <div class="group-head"><h2>Staff, moderation &amp; logs</h2><span>checks, strikes, movement, security, purge</span></div>
+  <div class="grid">
+
+    <div>
+      <div class="slot-label">activity check</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/chart.png" alt=""> ᴀᴄᴛɪᴠɪᴛʏ ᴄʜᴇᴄᴋ</div>
+        <div class="title">Activity check</div>
+        <div class="sub">36 hours left</div>
+        <div class="rule"></div>
+        <div class="facts"><span><b>18/24</b> reacted</span><i class="dot">·</i><span><b>3</b> on LOA</span></div>
+        <div class="quote">React with ✅ to keep your role.</div>
+        <div class="btnrow"><span class="btn ghost">View attendance</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">activity results</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/no.png" alt=""> ᴀᴄᴛɪᴠɪᴛʏ ᴄʜᴇᴄᴋ</div>
+        <div class="title">3 missed the check</div>
+        <div class="sub">18 of 24 reacted before it closed</div>
+        <div class="rule"></div>
+        <div class="label">Did not react</div>
+        <div class="members">
+          <div class="row"><span class="mention">@ghost</span></div>
+          <div class="row"><span class="mention">@void</span></div>
+          <div class="row"><span class="mention">@ember</span></div>
+        </div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">strike issued</div>
+      <article class="card">
+        <div class="thumb">G</div>
+        <div class="kicker"><img class="ce" src="/emoji/warn.png" alt=""> ꜱᴛᴀꜰꜰ ꜱᴛʀɪᴋᴇꜱ</div>
+        <div class="title">Strike issued</div>
+        <div class="row" style="margin-top:8px"><span class="k">Member</span><span class="mention">@ghost</span><span class="tag" style="margin-left:auto">S-0042</span></div>
+        <div class="row"><span class="k">Active</span><span><b style="color:#ff9ea1">2</b> strikes</span></div>
+        <div class="row"><span class="k">Reason</span><span>missed two checks in a row</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">strike voided</div>
+      <article class="card">
+        <div class="thumb">G</div>
+        <div class="kicker"><img class="ce" src="/emoji/ok.png" alt=""> ꜱᴛᴀꜰꜰ ꜱᴛʀɪᴋᴇꜱ</div>
+        <div class="title">Strike voided</div>
+        <div class="row" style="margin-top:8px"><span class="k">Member</span><span class="mention">@ghost</span><span class="tag" style="margin-left:auto">S-0041</span></div>
+        <div class="row"><span class="k">Active</span><span><b>1</b> strike left</span></div>
+        <div class="row"><span class="k">Reason</span><span>appeal accepted</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">/promote</div>
+      <article class="card">
+        <div class="thumb">S</div>
+        <div class="kicker"><img class="ce" src="/emoji/staff.png" alt=""> ꜱᴛᴀꜰꜰ ᴍᴏᴠᴇᴍᴇɴᴛ</div>
+        <div class="title">Promotion</div>
+        <div class="quote"><img class="ce" src="/emoji/up.png" alt=""> <b>@seraph</b> has been promoted to <span class="role">ᴍᴏᴅ</span>!</div>
+        <div class="row"><span class="k">By</span><span class="mention">@nemino</span></div>
+        <div class="row"><span class="k">Reason</span><span>clean tickets all month</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">/demote</div>
+      <article class="card">
+        <div class="thumb">G</div>
+        <div class="kicker"><img class="ce" src="/emoji/staff.png" alt=""> ꜱᴛᴀꜰꜰ ᴍᴏᴠᴇᴍᴇɴᴛ</div>
+        <div class="title">Demotion</div>
+        <div class="quote"><img class="ce" src="/emoji/swap.png" alt=""> <b>@ghost</b> has been demoted to <span class="role">ʜᴇʟᴘᴇʀ</span>.</div>
+        <div class="row"><span class="k">By</span><span class="mention">@nemino</span></div>
+        <div class="row"><span class="k">Reason</span><span>missed the last check</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">honeypot panel</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/honey.png" alt=""> ꜱᴇʀᴠᴇʀ ꜱᴇᴄᴜʀɪᴛʏ</div>
+        <div class="title">Honeypot channel</div>
+        <div class="quote">🚫 <b>DO NOT TALK IN HERE</b></div>
+        <div class="facts"><span><b>12</b> kicks</span><i class="dot">·</i><span>last one yesterday</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">honeypot log</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/shield.png" alt=""> ꜱᴇᴄᴜʀɪᴛʏ ʟᴏɢ</div>
+        <div class="title sm">Kicked @alt-4471</div>
+        <div class="sub">typed in the honeypot</div>
+        <div class="rule"></div>
+        <div class="facts"><span><b>13</b> total kicks</span><i class="dot">·</i><span>invite sent by DM</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">!purge</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/broom.png" alt=""> ᴘᴜʀɢᴇ</div>
+        <div class="title">Purged 25 messages</div>
+        <div class="sub">by seraph · #general</div>
+        <div class="rule"></div>
+        <div class="facts"><span><b>25</b> deleted</span><i class="dot">·</i><span>2 older than 14 days</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+  </div>
+</section>
+
+<section class="group" data-group="3">
+  <div class="group-head"><h2>Community, system &amp; confirmations</h2><span>vouches, suggestions, LOA, reviews, prices, updates</span></div>
+  <div class="grid">
+
+    <div>
+      <div class="slot-label">vouch panel</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/vouch.png" alt=""> ᴠᴏᴜᴄʜ</div>
+        <div class="title">How to vouch</div>
+        <div class="rule"></div>
+        <ul class="bul">
+          <li>Type <b>:vouch @member</b> in this channel.</li>
+          <li>One vouch per deal, no self-vouches.</li>
+        </ul>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">/vouch leaderboard</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/trophy.png" alt=""> ᴠᴏᴜᴄʜ ʟᴇᴀᴅᴇʀʙᴏᴀʀᴅ</div>
+        <div class="title">Top vouched</div>
+        <div class="sub">84 vouches given in this server</div>
+        <div class="rule"></div>
+        <div class="members">
+          <div class="row"><span class="medal">1</span><span class="mention">@seraph</span><span style="margin-left:auto"><b>21</b></span></div>
+          <div class="row"><span class="medal">2</span><span class="mention">@ghost</span><span style="margin-left:auto"><b>17</b></span></div>
+          <div class="row"><span class="medal">3</span><span class="mention">@void</span><span style="margin-left:auto"><b>12</b></span></div>
+        </div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">/suggestion</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/idea.png" alt=""> ꜱᴜɢɢᴇꜱᴛɪᴏɴ</div>
+        <div class="title sm">Suggestion</div>
+        <div class="quote">Add a weekly spawner restock so prices settle.</div>
+        <div class="facts"><span><b>7</b> approve</span><i class="dot">·</i><span><b>2</b> reject</span><i class="dot">·</i><span>by <span class="mention">@ghost</span></span></div>
+        <div class="btnrow"><span class="btn">✅ Approve (7)</span><span class="btn ghost">❌ Reject (2)</span></div>
+        <div class="foot">SUG-0031 · made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">LOA panel</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/palm.png" alt=""> ʟᴇᴀᴠᴇ ᴏꜰ ᴀʙꜱᴇɴᴄᴇ</div>
+        <div class="title">Going away for a bit?</div>
+        <div class="sub">Tell us when you are back and we pause your activity checks.</div>
+        <div class="btnrow"><span class="btn">🌴 Request LOA</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">application review</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/app.png" alt=""> ᴀᴘᴘʟɪᴄᴀᴛɪᴏɴ</div>
+        <div class="title">New application <span class="tag">A-0104</span></div>
+        <div class="sub"><span class="mention">@ghost</span> · 5 answers · full text attached</div>
+        <div class="rule"></div>
+        <div class="facts"><span>applied <b>2 hours ago</b></span><i class="dot">·</i><span>timezone <b>GMT+1</b></span></div>
+        <div class="btnrow"><span class="btn">Accept</span><span class="btn ghost">Deny</span><span class="btn ghost">Open ticket</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">confirmation · success &amp; error</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/ok.png" alt=""> ꜱᴘᴀᴡɴᴇʀ ᴘʀɪᴄᴇꜱ</div>
+        <div class="title sm">Price updated</div>
+        <div class="sub">Skeleton · buying <b>16M</b> each</div>
+        <div class="rule"></div>
+        <div class="facts"><span>board refreshed</span><i class="dot">·</i><span><b>2</b> tickets told</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+      <article class="card" style="margin-top:10px">
+        <div class="kicker"><img class="ce" src="/emoji/no.png" alt=""> ᴇʀʀᴏʀ</div>
+        <div class="title sm">Missing permissions</div>
+        <div class="sub">Only the spawner perms role can change prices.</div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div class="wide">
+      <div class="slot-label">spawner prices board · wide card</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/money.png" alt=""> ʙᴜʏ &amp; ꜱᴇʟʟ</div>
+        <div class="title">Spawner prices</div>
+        <div class="sub">prices in millions · updated 3 minutes ago</div>
+        <div class="rule"></div>
+        <div class="split">
+          <div>
+            <div class="label">🛒 buying</div>
+            <div class="price"><span>Skeleton</span><span>13M</span></div>
+            <div class="price"><span>Creeper</span><span>11.5M</span></div>
+            <div class="price"><span>Iron Golem</span><span>9M</span></div>
+            <div class="price"><span>Pig</span><span>4M</span></div>
+          </div>
+          <div>
+            <div class="label">💰 selling</div>
+            <div class="price"><span>Skeleton</span><span>16M</span></div>
+            <div class="price"><span>Creeper</span><span>14M</span></div>
+            <div class="price"><span>Iron Golem</span><span>11M</span></div>
+            <div class="price"><span>Pig</span><span>6M</span></div>
+          </div>
+        </div>
+        <div class="quote" style="margin-top:10px">Our prices are <b>not</b> negotiable · 2 by 2 at least · 8 spawner minimum</div>
+        <div class="btnrow"><span class="btn">🛒 Buy spawners</span><span class="btn ghost">💰 Sell spawners</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+    <div>
+      <div class="slot-label">bot update</div>
+      <article class="card">
+        <div class="kicker"><img class="ce" src="/emoji/spark.png" alt=""> ʙᴏᴛ ᴜᴘᴅᴀᴛᴇ</div>
+        <div class="title">Spawner pricing · Update notes</div>
+        <div class="versions"><em>v3</em></div>
+        <ul class="bul">
+          <li><b>Spawner pricing</b> — buy quotes the higher price, sell the lower.</li>
+          <li><b>Update notes</b> — staff approve each note before it posts.</li>
+        </ul>
+        <div class="btnrow"><span class="btn">📢 Post update</span><span class="btn ghost">Skip</span></div>
+        <div class="foot">made by seraphum</div>
+      </article>
+    </div>
+
+  </div>
+</section>
+
+<script>
+  const group = new URLSearchParams(location.search).get('group');
+  if (group) document.documentElement.dataset.group = group;
+  const total = document.querySelectorAll('.card').length;
+  document.body.innerHTML = document.body.innerHTML
+    .replaceAll('{{COUNT}}', String(total));
+</script>
+</body>
+</html>

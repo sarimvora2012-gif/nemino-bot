@@ -1,6 +1,6 @@
 'use strict';
 
-const { timestamp, icon } = require('./helpers');
+const { timestamp, icon, COLORS } = require('./helpers');
 const v2 = require('./v2');
 const { toSmallCaps } = require('./smallcaps');
 
@@ -10,7 +10,7 @@ const DEFAULT_WELCOME_CHANNEL_ID =
 const FALLBACK_RULES_CHANNEL_ID = '1528136158847045745';
 const FALLBACK_GENERAL_CHANNEL_ID = '1527920834046328896';
 
-const ACCENT = 0xffc93c;
+const ACCENT = COLORS.brand;
 
 /** The welcome channel: configured, then the default id, then any #welcome-ish text channel. */
 function resolveWelcomeChannel(guild, settings, client = null) {

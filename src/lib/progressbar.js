@@ -70,11 +70,12 @@ function insidePill(x, y, width, height, r, limit) {
 }
 
 const TRACK = [30, 31, 34];
-const FILL_START = [87, 242, 135];
-const FILL_END = [59, 165, 93];
+// Red, matching the card accent: deep red on the left, soft red on the right.
+const FILL_START = [161, 40, 43];
+const FILL_END = [255, 122, 125];
 
 /**
- * Draws the XP bar: a rounded track with a green gradient up to `percent`.
+ * Draws the XP bar: a rounded track with a red gradient up to `percent`.
  * Rendered at 3x and box-filtered down, which is enough antialiasing for the
  * rounded ends at this size.
  */

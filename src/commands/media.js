@@ -16,7 +16,7 @@ const {
   ButtonStyle,
   MessageFlags,
 } = require('discord.js');
-const { errorEmbed, successEmbed } = require('../lib/helpers');
+const { errorEmbed, successEmbed, icon, COLORS } = require('../lib/helpers');
 const { toSmallCaps } = require('../lib/smallcaps');
 const v2 = require('../lib/v2');
 
@@ -156,19 +156,19 @@ function canAnnounce(member, guild, role) {
  * the real title, the badge and time, a one-line summary, the cover image,
  * then the play button.
  */
-function videoCard({ title = null, url = null, thumbnail = null, ping = null }) {
+function videoCard({ title = null, url = null, thumbnail = null, ping = null, guild = null }) {
   const host = url ? hostOf(url) : 'youtube.com';
   const now = Math.floor(Date.now() / 1000);
 
   return v2.card({
-    accent: 0xff2d55,
-    kicker: `🍥 ${OWNER_NAME}`,
+    accent: COLORS.brand,
+    kicker: `${icon(guild, 'spark')} ${OWNER_NAME}`,
     title: title || `New video from ${OWNER_NAME}`,
-    subtitle: `🎬 new upload · <t:${now}:f>`,
+    subtitle: `${icon(guild, 'clock')} new upload · <t:${now}:f>`,
     quote: ping,
     description: [
       `Nemino just uploaded a new video!`,
-      url ? `🔗 [${host}](${url})` : null,
+      url ? `${icon(guild, 'file')} [${host}](${url})` : null,
     ]
       .filter(Boolean)
       .join('\n'),
@@ -183,6 +183,7 @@ function videoCard({ title = null, url = null, thumbnail = null, ping = null }) 
 function uploadCard({ guild, url, meta = null }) {
   const role = announceRole(guild);
   const payload = videoCard({
+    guild,
     title: meta?.title ?? null,
     url,
     thumbnail: meta?.thumbnail ?? videoThumbnail(url),

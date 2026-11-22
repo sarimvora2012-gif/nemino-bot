@@ -72,6 +72,14 @@ function defaultGuild() {
     // Chat and voice counters behind /scoreboard: { messages, voiceSeconds, voiceSince }.
     activityStats: { users: {} },
     spawners: { buy: {}, sell: {}, panelChannelId: null, panelMessageId: null },
+    // Release notes: the last version announced in this server and the note
+    // still waiting in the review channel.
+    updates: {
+      lastVersion: null,
+      pendingVersion: null,
+      draftChannelId: null,
+      draftMessageId: null,
+    },
     counters: { ticket: 0, application: 0, strike: 0, giveaway: 0, loa: 0, suggestion: 0 },
   };
 }
@@ -149,6 +157,7 @@ class Store {
     };
     guild.activityStats = { ...defaults.activityStats, ...guild.activityStats };
     guild.activityStats.users = { ...(guild.activityStats?.users ?? {}) };
+    guild.updates = { ...defaults.updates, ...guild.updates };
     guild.counters = { ...defaults.counters, ...guild.counters };
     return guild;
   }

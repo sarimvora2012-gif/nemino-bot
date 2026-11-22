@@ -29,6 +29,7 @@ const {
 } = require('../lib/helpers');
 const { toSmallCaps } = require('../lib/smallcaps');
 const { icon } = require('../lib/emojis');
+const v2 = require('../lib/v2');
 
 const data = [
   new SlashCommandBuilder()
@@ -86,20 +87,6 @@ async function execute(interaction, { store }) {
       store.save();
     }
     const extra = interaction.options.getString('message');
-    const panel = embed({
-      title: `${icon(guild, 'ticket')} Need help?`,
-      description: [
-        'Click the button below to open a private ticket with our staff team.',
-        '',
-        '**Before opening a ticket**',
-        '• Check the FAQ and announcements for an answer.',
-        '• Describe your issue clearly once the ticket is open.',
-        '• Do not open multiple tickets for the same issue.',
-        extra ? `\n${extra}` : '',
-      ].join('\n'),
-      color: COLORS.brand,
-    });
-
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('ticket:open')
@@ -107,8 +94,21 @@ async function execute(interaction, { store }) {
         .setEmoji('🎫')
         .setStyle(ButtonStyle.Primary),
     );
+    const panel = v2.card({
+      kicker: `${icon(guild, 'ticket')} ${toSmallCaps('support')}`,
+      title: 'Need help?',
+      subtitle: 'A private line to the staff team, opened in one click.',
+      description: [
+        `**${toSmallCaps('before you open')}**`,
+        '• Check the FAQ and announcements for an answer.',
+        '• Describe your issue clearly once the ticket is open.',
+        '• Do not open multiple tickets for the same issue.',
+        extra ? `\n${extra}` : '',
+      ].join('\n'),
+      buttons: [row],
+    });
 
-    await interaction.channel.send({ embeds: [panel], components: [row] });
+    await interaction.channel.send(panel);
     await interaction.reply({
       embeds: [
         successEmbed(

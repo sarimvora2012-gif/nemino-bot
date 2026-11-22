@@ -16,6 +16,7 @@ A Discord staff bot with **tickets**, **staff applications**, **giveaways**, **a
 | 🌴 LOA requests | `!loasetup` panel, request modal, staff accept/deny, notification DMs and automatic LOA role assignment |
 | 💡 Suggestions | `/suggestion` posts to the suggestion channel; staff vote with ✅ Approve / ❌ Reject buttons |
 | 🦴 Spawner prices | `/setspawnerprice` sets buying and selling prices per spawner kind; one wide board in the spawner prices channel updates itself, with Buy/Sell ticket buttons |
+| 🆕 Bot updates | Every release posts a what's-new card with the version in <#1573870512122101780> and pings the Co Owner role; anyone who can see that channel posts it to <#1528299418657230878> or skips it |
 | 🎥 Videos | `/upload video link:<url>` announces a new video and pings the Nemo role; streams are never announced |
 | 🎟️ Vouches | `:vouch @user` in a vouch channel, `Name (count)` nicknames (behind the staff rank, e.g. `ᴍᴏᴅ Name (count)`), a how-to panel that is reposted so it stays newest, `/vouch leaderboard` and owner-only `!vouchadd` |
 | ⏳ Timeouts | `!to @user 10m [reason]` with hierarchy checks, a DM to the member and an entry in the moderation log |
@@ -303,6 +304,27 @@ Each row uses the server's custom emoji for that spawner when one exists (names 
 
 Clicking a button opens a private ticket in the spawner category with the buying or selling prices the member will actually pay or earn, `/ticket close` support and transcripts. The ticket pings the **spawner perms** role once so the people who run spawner deals see it straight away: `/config set spawner_perms_role:@role` picks it explicitly, and if that is unset the bot uses whichever role reads as “spawner perms” in any font. That role is also given access to the ticket channel, otherwise it could be pinged into a room it cannot open. If the server has no such role, the ticket still opens — just without a ping.
 
+### Bot updates
+| Where | Who | What |
+| --- | --- | --- |
+| <#1573870512122101780> | Anyone who can see the channel | The new release waits here with **Post update** / **Skip** buttons |
+| <#1528299418657230878> | Everyone | The approved note, posted once |
+
+Every release is announced in two steps. When the bot starts on a version it has not announced in that server yet, it posts the note in <#1573870512122101780>, pings the **Co Owner** role and waits. Anyone who can view that channel can press **Post update** to send the note to <#1528299418657230878>, or **Skip** to leave it unpublished. The review message is then rewritten to say who handled it and its buttons disappear, so a second press does nothing. If the review channel is unreachable the note is retried on the next restart instead of being lost.
+
+The note is a Components V2 card: the title lists the feature names, the version sits under it as a large heading (`## v3`), and every feature gets a bullet saying what it does. The notes live in `src/lib/updates.js` — the newest entry in `RELEASES` is the version the bot announces, so a new update means adding one entry:
+
+```js
+{
+  version: 'v4',
+  features: [
+    { name: 'Feature name', detail: 'What it does, in one sentence.' },
+  ],
+}
+```
+
+The version is remembered per server (`updates.lastVersion` and `updates.pendingVersion` in `data/data.json`), so a restart never reposts a note that is already waiting or already handled.
+
 ### Videos
 | Command | Who | Description |
 | --- | --- | --- |
@@ -514,6 +536,7 @@ src/
   lib/timeout.js        `!to @user <time>` timeout command and moderation log
   lib/purge.js          `!purge <amount>` bulk delete with staff and owner caps
   lib/roles.js          owner / co-owner role check shared by purge and levels
+  lib/updates.js        release notes and the review-then-post update flow
   lib/v2.js             converts embeds/content into Components V2 display components
   lib/protection.js     kick-protection role, admin bypass and kick checks
   lib/activity.js       activity check lifecycle, reactions, reminders, scheduler
@@ -548,7 +571,7 @@ transcripts/            ticket transcripts, git-ignored
 npm run check   # validates command JSON, handlers and the data store without a token
 ```
 
-All embeds are created through `embed()` in `src/lib/helpers.js`, which adds the small `made by seraphum` footer signature and **no timestamp** — Discord already shows when a message was sent. Pass `timestamp: true` to the helper for the rare card that records a moment. The cards stay deliberately lean: members are shown by mention instead of `name#tag` plus ID, and stats that repeat another line (a missing count next to the reacted count, a member number in both the subtitle and the body) appear only once. At send time, `src/lib/v2.js` converts those embeds and plain text into Discord **Components V2** containers. The V2 text limit is 4000 characters, so unusually long cards are truncated; application reviews still include the full answer file. Messages posted before the update stay in the classic embed style until they are reposted — rerun panel commands such as `/ticket panel` or `/application panel` to post a V2 version.
+The palette is **red**: `COLORS.brand` (`#ED4245`) is the accent on every card, panel, progress bar and button, while `COLORS.danger` is a deeper red and `COLORS.warning` a softer one, so no card switches colour family. All embeds are created through `embed()` in `src/lib/helpers.js`, which adds the small `made by seraphum` footer signature and **no timestamp** — Discord already shows when a message was sent. Pass `timestamp: true` to the helper for the rare card that records a moment. The cards stay deliberately lean: members are shown by mention instead of `name#tag` plus ID, and stats that repeat another line (a missing count next to the reacted count, a member number in both the subtitle and the body) appear only once. At send time, `src/lib/v2.js` converts those embeds and plain text into Discord **Components V2** containers. The V2 text limit is 4000 characters, so unusually long cards are truncated; application reviews still include the full answer file. Messages posted before the update stay in the classic embed style until they are reposted — rerun panel commands such as `/ticket panel` or `/application panel` to post a V2 version.
 
 ## Troubleshooting
 

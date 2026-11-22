@@ -31,6 +31,8 @@ const {
 } = require('../lib/helpers');
 const { DEFAULT_QUESTIONS } = require('../store');
 const { icon } = require('../lib/emojis');
+const { toSmallCaps } = require('../lib/smallcaps');
+const v2 = require('../lib/v2');
 const { createTicketChannel } = require('./ticket');
 
 const QUESTIONS_PER_PAGE = 5;
@@ -100,24 +102,25 @@ const data = [
     ),
 ];
 
-function panelEmbed(settings) {
-  return embed({
-    title: 'Staff applications',
+function panelPayload(settings, guild) {
+  const open = settings.applications.open;
+  return v2.card({
+    accent: open ? COLORS.brand : COLORS.neutral,
+    kicker: `${icon(guild, 'app')} ${toSmallCaps('staff')}`,
+    title: `Staff applications${open ? '' : ' · closed'}`,
+    subtitle: open
+      ? `Five questions, answered by DM · ${settings.applications.questions.length} in total`
+      : 'Applications are currently closed.',
     description: [
-      settings.applications.open ? 'We are **open** for applications!' : 'Applications are currently **closed**.',
+      'Click **Apply** below and the bot sends you the questions in a DM. You have **60 minutes** to finish.',
       '',
-      'Click **Apply** below and the bot will send you the questions in a DM.',
-      `There are ${settings.applications.questions.length} questions and you have **60 minutes** to finish.`,
-      '',
-      '**Tips**',
+      `**${toSmallCaps('tips')}**`,
       '• Answer honestly and in detail.',
-      '• You can type **cancel** in the DM to cancel your application.',
+      '• Type **cancel** in the DM to cancel your application.',
       '• Do not submit more than once.',
       '• If your application is denied, you can apply again after **2 weeks**.',
-      '• Staff will review your application and contact you.',
     ].join('\n'),
-    color: settings.applications.open ? COLORS.brand : COLORS.neutral,
-    footer: 'Click Apply to start',
+    buttons: [panelRow()],
   });
 }
 
@@ -692,7 +695,7 @@ async function execute(interaction, { store }) {
 
   if (sub === 'panel') {
     const target = interaction.options.getChannel('channel') ?? interaction.channel;
-    await target.send({ embeds: [panelEmbed(settings)], components: [panelRow()] });
+    await target.send(panelPayload(settings, target.guild ?? interaction.guild));
     await interaction.reply({
       embeds: [
         successEmbed(
@@ -1103,7 +1106,7 @@ module.exports = {
   handleButton,
   handleModal,
   handleDirectMessage,
-  panelEmbed,
+  panelPayload,
   panelRow,
   reviewComponents,
   denialCooldown,
