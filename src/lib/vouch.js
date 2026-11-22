@@ -135,11 +135,18 @@ async function resyncNicknames(guild, store) {
   return result;
 }
 
-/** One plain instruction line, matching how other vouch bots word it. */
-const PANEL_TEXT = 'Vouches must be in the format: `vouch <@member>`';
-
-function panelCard() {
-  return { content: PANEL_TEXT };
+function panelCard(guild) {
+  return v2.card({
+    kicker: `${icon(guild, 'vouch')} ${toSmallCaps('vouch')}`,
+    title: 'How to vouch',
+    description: [
+      'Vouches must be in the format: `vouch <@member>`',
+      '• One vouch per completed deal.',
+      '• You cannot vouch for yourself.',
+      '• Your name picks up the count after each vouch.',
+    ].join('\n'),
+    footer: 'Vouch panel',
+  });
 }
 
 /**
@@ -158,7 +165,7 @@ async function refreshPanel(channel, store) {
   }
 
   const message = await channel
-    .send({ ...panelCard(), allowedMentions: { parse: [] } })
+    .send({ ...panelCard(channel.guild), allowedMentions: { parse: [] } })
     .catch((err) => {
       console.error('[vouch] Failed to post the vouch panel:', err.message);
       return null;

@@ -251,28 +251,29 @@ async function refreshPanel(guild, settings, store) {
 }
 
 async function sendImmuneNotice(member, channel) {
-  const payload = {
-    embeds: [
-      embed({
-        title: `${icon(member.guild, 'shield')} Honeypot — you are immune`,
-        description: [
-          `You typed in ${channel}, which is a **honeypot**: it exists to catch compromised accounts.`,
-          'Your message was removed, but **moderators and above are never kicked**.',
-          '',
-          'Please do not type there again.',
-        ].join('\n'),
-        color: COLORS.warning,
-        footer: 'Honeypot system',
-      }),
-    ],
-  };
+  const payload = v2.card({
+    accent: COLORS.warning,
+    kicker: `${icon(member.guild, 'shield')} ${toSmallCaps('honeypot')}`,
+    title: 'You are immune',
+    description: [
+      `You typed in ${channel}, which is a **honeypot**: it exists to catch compromised accounts.`,
+      'Your message was removed, but **moderators and above are never kicked**.',
+      '',
+      'Please do not type there again.',
+    ].join('\n'),
+    footer: 'Honeypot system',
+  });
 
   const dmed = await safeDM(member.user, payload);
   if (dmed) return true;
 
-  // DMs closed. A channel message is the only fallback; it is removed quickly.
+  // DMs closed. Only a plain message can ping them here, and it is removed
+  // after a few seconds.
   const note = await channel
-    .send({ content: `<@${member.id}>`, ...payload, allowedMentions: { users: [member.id] } })
+    .send({
+      content: `<@${member.id}> you are immune to the honeypot — your message was removed, please do not type there again.`,
+      allowedMentions: { users: [member.id] },
+    })
     .catch(() => null);
   if (note) setTimeout(() => note.delete().catch(() => {}), IMMUNE_NOTE_MS).unref?.();
   return false;
@@ -313,20 +314,23 @@ async function handleMessage(message, { store }) {
   if (isModOrAbove(member, guild)) {
     await message.delete().catch(() => {});
     const dmed = await sendImmuneNotice(member, message.channel);
-    await sendLog(guild, settings, [
-      embed({
-        title: `${icon(guild, 'shield')} Honeypot ignored — moderator`,
-        description: [
-          `**Member:** ${member}`,
-          `**Channel:** #${channelName}`,
-          `**Message:** ${String(message.content ?? '').slice(0, 300) || '_no text_'}`,
-          `**Notice:** ${dmed ? 'DM sent' : 'DM closed, showed a temporary note'}`,
-        ].join('\n'),
-        color: COLORS.warning,
+    await sendLog(
+      guild,
+      settings,
+      v2.card({
+        accent: COLORS.warning,
+        kicker: `${icon(guild, 'shield')} ${toSmallCaps('security log')}`,
+        title: 'Honeypot ignored — moderator',
+        stats: [
+          { emoji: '👤', label: 'Member', value: `${member}` },
+          { emoji: '📁', label: 'Channel', value: `#${channelName}` },
+          { emoji: '📨', label: 'Notice', value: dmed ? 'DM sent' : 'DM closed, temporary note' },
+        ],
+        description: `**${toSmallCaps('message')}**\n${String(message.content ?? '').slice(0, 300) || '_no text_'}`,
         thumbnail: member.user?.displayAvatarURL?.(),
         footer: 'Security log',
       }),
-    ]);
+    );
     return;
   }
 
@@ -338,26 +342,23 @@ async function handleMessage(message, { store }) {
     store.save();
   }
 
-  const dmSent = await safeDM(member.user, {
-    embeds: [
-      embed({
-        title: `${icon(guild, 'honey')} You were kicked — honeypot channel`,
-        description: [
-          `**Server:** ${guild.name}`,
-          `**Channel:** #${channelName}`,
-          '',
-          'You sent a message in a channel marked **DO NOT TALK IN HERE**. That channel only exists to catch compromised accounts, so any message in it triggers an automatic kick.',
-          '',
-          '**If your account is fine**, this was just a slip — come straight back:',
-          inviteUrl ?? 'Ask a staff member for a new invite.',
-          '',
-          '**If you did not write that message**, your account may be compromised. Change your password, turn on 2FA, then rejoin with the link above.',
-        ].join('\n'),
-        color: COLORS.danger,
-        footer: 'Honeypot system',
-      }),
-    ],
-  });
+  const dmSent = await safeDM(
+    member.user,
+    v2.card({
+      kicker: `${icon(guild, 'honey')} ${toSmallCaps('honeypot')}`,
+      title: 'You were kicked',
+      subtitle: `${guild.name} · #${channelName}`,
+      description: [
+        'You sent a message in a channel marked **DO NOT TALK IN HERE**. That channel only exists to catch compromised accounts, so any message in it triggers an automatic kick.',
+        '',
+        '**If your account is fine**, this was just a slip — come straight back:',
+        inviteUrl ?? 'Ask a staff member for a new invite.',
+        '',
+        '**If you did not write that message**, your account may be compromised. Change your password, turn on 2FA, then rejoin with the link above.',
+      ].join('\n'),
+      footer: 'Honeypot system',
+    }),
+  );
 
   const blocker = kickBlocker(guild, member);
   let kicked = false;
@@ -383,24 +384,26 @@ async function handleMessage(message, { store }) {
   }
 
   const total = Number(settings.honeypot.kicks) || 0;
-  const lines = [
-    `**Member:** ${member}`,
-    `**Channel:** #${channelName}`,
-    `**Message:** ${String(message.content ?? '').slice(0, 300) || '_no text_'}`,
-    `**DM with invite:** ${dmSent ? 'sent' : 'not delivered'}`,
-    `**Kick:** ${kicked ? 'done' : `failed — ${failure ?? 'unknown reason'}`}`,
-    `**Total kicked:** ${total}`,
-  ];
 
-  await sendLog(guild, settings, [
-    embed({
-      title: `${icon(guild, 'honey')} ${kicked ? 'Honeypot triggered — member kicked' : 'Honeypot triggered — kick failed'}`,
-      description: lines.join('\n'),
-      color: kicked ? COLORS.danger : COLORS.warning,
+  await sendLog(
+    guild,
+    settings,
+    v2.card({
+      accent: kicked ? COLORS.danger : COLORS.warning,
+      kicker: `${icon(guild, 'honey')} ${toSmallCaps('security log')}`,
+      title: kicked ? 'Honeypot triggered — member kicked' : 'Honeypot triggered — kick failed',
+      stats: [
+        { emoji: '👤', label: 'Member', value: `${member}` },
+        { emoji: '📁', label: 'Channel', value: `#${channelName}` },
+        { emoji: '📨', label: 'DM with invite', value: dmSent ? 'sent' : 'not delivered' },
+        { emoji: '👢', label: 'Kick', value: kicked ? 'done' : `failed — ${failure ?? 'unknown reason'}` },
+        { emoji: '🔢', label: 'Total kicked', value: `${total}` },
+      ],
+      description: `**${toSmallCaps('message')}**\n${String(message.content ?? '').slice(0, 300) || '_no text_'}`,
       thumbnail: member.user?.displayAvatarURL?.(),
       footer: 'Security log',
     }),
-  ]);
+  );
 }
 
 async function handleCommand(message, guild, parsed, store) {

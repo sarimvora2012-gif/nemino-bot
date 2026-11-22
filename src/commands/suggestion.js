@@ -189,10 +189,21 @@ async function handleButton(interaction, { store }) {
     downVotes: [...downVotes],
   });
 
-  await interaction.update({
-    ...suggestionCard(updated, interaction.guild),
-    allowedMentions: { parse: [] },
-  });
+  try {
+    await interaction.update({
+      ...suggestionCard(updated, interaction.guild),
+      allowedMentions: { parse: [] },
+    });
+  } catch {
+    // Suggestions posted before the card style stay classic embeds and cannot
+    // be edited into Components V2; the vote is still counted.
+    await interaction
+      .reply({
+        content: 'Your vote was counted, but this suggestion predates the card layout so its message could not be updated.',
+        flags: MessageFlags.Ephemeral,
+      })
+      .catch(() => {});
+  }
 
   const hasVote =
     action === 'up' ? upVotes.has(userId) : downVotes.has(userId);

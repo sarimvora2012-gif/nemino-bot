@@ -72,7 +72,7 @@ function normalizeStrikeId(input) {
   return `S-${match[1].padStart(4, '0')}`;
 }
 
-function strikesEmbed(user, strikes, guild, color = COLORS.brand) {
+function strikesCard(user, strikes, guild, color = COLORS.brand) {
   const active = strikes.filter((strike) => strike.active);
   const voided = strikes.filter((strike) => !strike.active);
   const total = { Minor: 0, Moderate: 0, Severe: 0 };
@@ -87,32 +87,27 @@ function strikesEmbed(user, strikes, guild, color = COLORS.brand) {
       `> By <@${strike.moderatorId}>${strike.active ? '' : ` · **voided** by <@${strike.removedBy}>${strike.removeReason ? ` — ${truncate(strike.removeReason, 200)}` : ''}`}`,
     ].join('\n');
 
-  const fields = [
-    {
-      name: 'Active strikes',
-      value: active.length ? active.map(format).join('\n\n') : '_None_',
-      inline: false,
-    },
-    {
-      name: 'Summary',
-      value: `Minor: **${total.Minor}** · Moderate: **${total.Moderate}** · Severe: **${total.Severe}**`,
-      inline: false,
-    },
+  const sections = [
+    `**${toSmallCaps('active strikes')}**\n${active.length ? active.map(format).join('\n\n') : '_None_'}`,
+    `**${toSmallCaps('summary')}**\nMinor **${total.Minor}** · Moderate **${total.Moderate}** · Severe **${total.Severe}**`,
   ];
   if (voided.length) {
-    fields.push({
-      name: `Voided strikes (${voided.length})`,
-      value: truncate(voided.map(format).join('\n\n'), 1024),
-      inline: false,
-    });
+    sections.push(
+      `**${toSmallCaps(`voided strikes (${voided.length})`)}**\n${truncate(
+        voided.map(format).join('\n\n'),
+        1200,
+      )}`,
+    );
   }
 
-  return embed({
-    title: `${icon(guild, 'warn')} Strikes — ${user.username}`,
-    color: active.length ? color : COLORS.success,
-    fields,
-    thumbnail: user.displayAvatarURL(),
-    footer: `${active.length} active strike${active.length === 1 ? '' : 's'}`,
+  return v2.card({
+    accent: active.length ? color : COLORS.success,
+    kicker: `${icon(guild, 'warn')} ${toSmallCaps('strikes')}`,
+    title: user.username,
+    subtitle: `${active.length} active · ${voided.length} voided`,
+    sections,
+    thumbnail: user.displayAvatarURL?.(),
+    footer: 'Strike record',
   });
 }
 
@@ -227,7 +222,7 @@ async function handleMessage(message, { store }) {
     const strikes = store.strikes(guild.id, user.id);
     await message.channel
       .send({
-        embeds: [strikesEmbed(user, strikes, guild)],
+        ...strikesCard(user, strikes, guild),
         allowedMentions: { parse: [] },
       })
       .catch(() => {});
@@ -355,6 +350,6 @@ module.exports = {
   normalizeStrikeId,
   parseStrikeCommand,
   resolveStrikesChannel,
-  strikesEmbed,
+  strikesCard,
   voidedCard,
 };

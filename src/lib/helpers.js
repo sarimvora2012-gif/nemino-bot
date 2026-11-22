@@ -112,16 +112,20 @@ function canManageRole(guild, role) {
 const timestamp = (date = new Date()) => `<t:${Math.floor(new Date(date).getTime() / 1000)}:f>`;
 const relative = (date = new Date()) => `<t:${Math.floor(new Date(date).getTime() / 1000)}:R>`;
 
-/** Send an embed to the configured audit log channel, ignoring failures. */
-async function sendLog(guild, settings, embeds) {
+/**
+ * Send an embed (or a ready Components V2 card) to the configured audit log
+ * channel, ignoring failures. A card is recognised by its components.
+ */
+async function sendLog(guild, settings, content) {
   if (!settings?.logChannelId) return;
   const channel = guild.channels.cache.get(settings.logChannelId);
   if (!channel?.isTextBased()) return;
+  const payload =
+    content && !Array.isArray(content) && Array.isArray(content.components)
+      ? content
+      : { embeds: Array.isArray(content) ? content : [content] };
   try {
-    await channel.send({
-      embeds: Array.isArray(embeds) ? embeds : [embeds],
-      allowedMentions: { parse: [] },
-    });
+    await channel.send({ ...payload, allowedMentions: { parse: [] } });
   } catch (err) {
     console.error('[log] Failed to send log message:', err.message);
   }

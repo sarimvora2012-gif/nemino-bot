@@ -4064,6 +4064,55 @@ test('a reviewed update is posted once and its draft loses the buttons', async (
   assert.match(again.replies[0].embeds[0].data.title, /Already handled/);
 });
 
+test('the remaining panels are red cards, not classic embeds', () => {
+  const loa = require('../src/lib/loa');
+  const vouch = require('../src/lib/vouch');
+  const honeypot = require('../src/lib/honeypot');
+  const strike = require('../src/lib/strike');
+  const application = require('../src/commands/application');
+
+  const guild = { id: 'g', name: 'Nemino', roles: { cache: [] } };
+  const user = { id: 'u', username: 'ghost', displayAvatarURL: () => 'https://cdn.example/a.png' };
+  const surfaces = {
+    'LOA panel': loa.panelPayload('role-1', guild),
+    'LOA request': loa.requestPayload(
+      {
+        id: 'L-0001',
+        username: 'ghost',
+        userId: 'u',
+        duration: 'one week',
+        reason: 'exams',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      },
+      guild,
+    ),
+    'vouch panel': vouch.panelCard(guild),
+    'honeypot card': honeypot.panelCard(3, guild),
+    'strike list': strike.strikesCard(user, [], guild),
+    'application review': application.reviewPayload(
+      {
+        id: 'A-0001',
+        username: 'ghost',
+        userId: 'u',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        answers: [{ question: 'Why?', answer: 'Because.' }],
+      },
+      guild,
+    ),
+  };
+
+  // Pending cards use the soft red, errors the deep red; all stay in the family.
+  const RED_FAMILY = [0xed4245, 0xa1282b, 0xff7a7d];
+  for (const [name, payload] of Object.entries(surfaces)) {
+    assert.ok(Array.isArray(payload.components) && payload.components.length, `${name} is a card`);
+    const accent = payload.components[0].toJSON().accent_color;
+    assert.ok(RED_FAMILY.includes(accent), `${name} uses a red accent (got ${accent})`);
+    assert.equal(payload.embeds, undefined, `${name} is not a classic embed`);
+  }
+});
+
 Promise.all(pendingTests).then(() => {
   console.log(`\n${failures === 0 ? '✅ All checks passed' : `❌ ${failures} check(s) failed`}`);
   console.log(`${commandCountLine}\n`);

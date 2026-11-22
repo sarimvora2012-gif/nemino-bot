@@ -179,46 +179,46 @@ function denialCooldown(store, guildId, userId) {
 }
 
 /**
- * Builds one or more embeds so long applications stay within Discord's limits.
- * Five answers per embed keeps every answer readable inside the 6000-char cap.
+ * The review card. Answers are shortened here and the full text travels in the
+ * attached file, so even a ten-question application stays one card.
  */
-function reviewEmbeds(application, statusText) {
-  const chunks = [];
-  for (let i = 0; i < application.answers.length; i += QUESTIONS_PER_PAGE) {
-    chunks.push(application.answers.slice(i, i + QUESTIONS_PER_PAGE));
-  }
-  if (!chunks.length) chunks.push([]);
+function reviewPayload(
+  application,
+  guild,
+  statusText = null,
+  { pending = application.status === 'pending', quote = null } = {},
+) {
+  const accent =
+    application.status === 'accepted'
+      ? COLORS.success
+      : application.status === 'denied'
+        ? COLORS.danger
+        : COLORS.brand;
 
-  const color =
-    application.status === 'pending'
-      ? COLORS.brand
-      : application.status === 'accepted'
-        ? COLORS.success
-        : COLORS.danger;
-
-  return chunks.map((chunk, index) => {
-    const built = embed({
-      title:
-        index === 0
-          ? `Application ${application.id} — ${application.username}`
-          : `Application ${application.id} — continued (${index + 1}/${chunks.length})`,
-      color,
-      fields: chunk.map((entry) => ({
-        name: truncate(entry.question, 100),
-        value: truncate(entry.answer, 350),
-      })),
-      footer: index === 0 ? 'Full answers attached' : undefined,
-    });
-    if (index === 0) {
-      built.addFields({
-        name: 'Status',
+  return v2.card({
+    accent,
+    kicker: `${icon(guild, 'app')} ${toSmallCaps('application')}`,
+    title: `${application.id} · ${application.username}`,
+    subtitle: `<@${application.userId}> · submitted ${relative(application.createdAt)}`,
+    quote,
+    stats: [
+      {
+        emoji: '📌',
+        label: 'Status',
         value: truncate(
           statusText ?? (application.status === 'pending' ? '⏳ Pending review' : 'Reviewed'),
           500,
         ),
-      });
-    }
-    return built;
+      },
+    ],
+    description:
+      application.answers
+        .map(
+          (entry) => `**${truncate(entry.question, 100)}**\n${truncate(entry.answer, 300)}`,
+        )
+        .join('\n\n') || '_No answers recorded._',
+    footer: 'Full answers attached',
+    buttons: reviewComponents(application.id, { pending }),
   });
 }
 
@@ -480,10 +480,15 @@ async function submitDraft(client, draft, { store }) {
   const staffPing = settings.staffRoleId ? `<@&${settings.staffRoleId}>` : '';
   const message = await reviewChannel
     .send({
-      content: `${staffPing} new application from <@${draft.userId}> (${draft.userId})`.trim(),
-      embeds: reviewEmbeds(application),
+      ...reviewPayload(application, guild, null, {
+        quote: `${staffPing ? `${staffPing} ` : ''}new application from <@${draft.userId}>`,
+      }),
       files: [applicationFile(application)],
-      components: reviewComponents(application.id),
+      allowedMentions: {
+        parse: [],
+        users: [draft.userId],
+        roles: staffPing ? [settings.staffRoleId] : [],
+      },
     })
     .catch((err) => {
       console.error('[application] Failed to post review message:', err);
@@ -954,10 +959,26 @@ async function handleButton(interaction, { store }) {
       reviewedAt: new Date().toISOString(),
     });
 
-    await interaction.update({
-      embeds: reviewEmbeds(updated, `✅ Accepted by ${interaction.user}`),
-      components: reviewComponents(application.id, { pending: false }),
-    });
+    try {
+      await interaction.update({
+        ...reviewPayload(updated, guild, `✅ Accepted by ${interaction.user}`, { pending: false }),
+        allowedMentions: { parse: [] },
+      });
+    } catch {
+      // A review message posted before the card style cannot be edited into
+      // Components V2; the decision itself still went through.
+      await interaction
+        .reply({
+          embeds: [
+            successEmbed(
+              'Application accepted',
+              `${application.id} was accepted. Its review message is an older embed, so the card could not be restyled.`,
+            ),
+          ],
+          flags: MessageFlags.Ephemeral,
+        })
+        .catch(() => {});
+    }
 
     if (roleWarning) {
       await interaction
@@ -1049,11 +1070,13 @@ async function handleModal(interaction, { store }) {
     if (reviewMessage) {
       await reviewMessage
         .edit({
-          embeds: reviewEmbeds(
+          ...reviewPayload(
             updated,
+            guild,
             `❌ Denied by ${interaction.user}\n**Reason:** ${truncate(reason, 900)}\n**Reapply:** ${relative(updated.reapplyAt)}`,
+            { pending: false },
           ),
-          components: reviewComponents(applicationId, { pending: false }),
+          allowedMentions: { parse: [] },
         })
         .catch(() => {});
     }
@@ -1109,5 +1132,6 @@ module.exports = {
   panelPayload,
   panelRow,
   reviewComponents,
+  reviewPayload,
   denialCooldown,
 };

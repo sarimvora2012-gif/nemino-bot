@@ -26,6 +26,8 @@ const {
 } = require('./helpers');
 
 const { icon } = require('./emojis');
+const v2 = require('./v2');
+const { toSmallCaps } = require('./smallcaps');
 
 const LOA_REQUEST_CHANNEL_ID = '1563541405706485850';
 const LOA_ROLE_ID = '1539905285789982781';
@@ -35,21 +37,21 @@ function loaRoleId(settings) {
   return settings?.activity?.loaRoleId || LOA_ROLE_ID;
 }
 
-function panelEmbed(roleId = LOA_ROLE_ID, guild) {
-  return embed({
-    title: `${icon(guild, 'palm')} Leave of Absence`,
+function panelPayload(roleId = LOA_ROLE_ID, guild) {
+  return v2.card({
+    kicker: `${icon(guild, 'palm')} ${toSmallCaps('leave of absence')}`,
+    title: 'Leave of absence',
+    subtitle: 'Need some time away? This pauses your activity checks.',
     description: [
-      'Need some time away from the server? You can request a leave of absence here.',
-      '',
       'Click **Request LOA** below and tell us:',
       '• How long you need to be away',
       '• Why you need the leave',
       '',
-      `Your request will be sent to <#${LOA_REQUEST_CHANNEL_ID}> for staff review.`,
-      `If it is accepted, you will receive <@&${roleId}> and be excluded from activity checks.`,
+      `Your request goes to <#${LOA_REQUEST_CHANNEL_ID}> for staff review.`,
+      `If it is accepted you get <@&${roleId}> and are excluded from activity checks.`,
     ].join('\n'),
-    color: COLORS.brand,
     footer: 'Staff review every request',
+    buttons: [panelRow()],
   });
 }
 
@@ -77,28 +79,35 @@ function statusText(request) {
   return '⏳ Waiting for staff review';
 }
 
-function requestEmbed(request) {
-  const fields = [
-    { name: 'Member', value: `<@${request.userId}> (${request.username})`, inline: true },
-    { name: 'Duration', value: truncate(request.duration, 200), inline: true },
-    { name: 'Requested', value: relative(request.createdAt), inline: true },
-    { name: 'Reason', value: truncate(request.reason, 1000) },
-    { name: 'Status', value: statusText(request) },
-  ];
+function requestPayload(request, guild, quote = null) {
+  const accent =
+    request.status === 'accepted'
+      ? COLORS.success
+      : request.status === 'denied'
+        ? COLORS.danger
+        : COLORS.warning;
 
-  if (request.status === 'denied' && request.denyReason) {
-    fields.push({ name: 'Denial reason', value: truncate(request.denyReason, 1000) });
-  }
-
-  return embed({
-    title: `LOA request ${request.id}`,
-    color:
-      request.status === 'accepted'
-        ? COLORS.success
-        : request.status === 'denied'
-          ? COLORS.danger
-          : COLORS.warning,
-    fields,
+  return v2.card({
+    accent,
+    kicker: `${icon(guild, 'palm')} ${toSmallCaps('leave of absence')}`,
+    title: `${request.id} · ${request.username}`,
+    subtitle: `requested ${relative(request.createdAt)}`,
+    quote,
+    stats: [
+      { emoji: '⏱️', label: 'Duration', value: truncate(request.duration, 200) },
+      { emoji: '📌', label: 'Status', value: statusText(request) },
+    ],
+    description: [
+      `**${toSmallCaps('reason')}**`,
+      truncate(request.reason, 900),
+      request.status === 'denied' && request.denyReason
+        ? `\n**${toSmallCaps('denial reason')}**\n${truncate(request.denyReason, 500)}`
+        : null,
+    ]
+      .filter((line) => line !== null)
+      .join('\n'),
+    footer: 'Staff review every request',
+    buttons: requestComponents(request),
   });
 }
 
@@ -138,10 +147,7 @@ async function editRequestMessage(guild, request) {
   const message = await channel.messages.fetch(request.messageId).catch(() => null);
   if (!message) return;
   await message
-    .edit({
-      embeds: [requestEmbed(request)],
-      components: requestComponents(request),
-    })
+    .edit({ ...requestPayload(request, guild), allowedMentions: { parse: [] } })
     .catch(() => {});
 }
 
@@ -181,10 +187,7 @@ async function handleMessage(message, { store }) {
   }
 
   try {
-    await message.channel.send({
-      embeds: [panelEmbed(loaRoleId(settings), message.guild)],
-      components: [panelRow()],
-    });
+    await message.channel.send(panelPayload(loaRoleId(settings), message.guild));
   } catch (err) {
     console.error('[loa] Failed to post panel:', err);
     await message
@@ -411,9 +414,16 @@ async function handleModal(interaction, { store }) {
     const staffPing = settings.staffRoleId ? `<@&${settings.staffRoleId}>` : '';
     const message = await channel
       .send({
-        content: `${staffPing} new LOA request from <@${request.userId}>`.trim(),
-        embeds: [requestEmbed(request)],
-        components: requestComponents(request),
+        ...requestPayload(
+          request,
+          interaction.guild,
+          `${staffPing ? `${staffPing} ` : ''}new LOA request from <@${request.userId}>`,
+        ),
+        allowedMentions: {
+          parse: [],
+          users: [request.userId],
+          roles: staffPing ? [settings.staffRoleId] : [],
+        },
       })
       .catch((err) => {
         console.error('[loa] Failed to post request:', err);
@@ -563,8 +573,8 @@ module.exports = {
   handleMessage,
   handleButton,
   handleModal,
-  panelEmbed,
+  panelPayload,
   panelRow,
-  requestEmbed,
+  requestPayload,
   requestComponents,
 };
